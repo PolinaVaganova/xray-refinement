@@ -117,7 +117,7 @@ class PrepareHelper:
         ]
 
         n_positive_r_flags = sum(R_FREE_FLAG)
-        flag_is_one = n_positive_r_flags < len(R_FREE_FLAG) / 2
+        flag_is_one = n_positive_r_flags > len(R_FREE_FLAG) / 2
 
         with open(output_filename, "w") as output:
             output.write(f'{len(H)} 0\n')
