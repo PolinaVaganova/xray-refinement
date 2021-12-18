@@ -588,7 +588,7 @@ class Prepare(Step, PrepareHelper):
 
     def run(self, md: RefinementProtocol):
         input_st = self.remove_water_and_alt_conformations()
-        self.check_occupancy(input_st)
+        # self.check_occupancy(input_st)
         self.protonate(input_st)
         self.build_unit_cell()
         self.prepare_draft_simulation()
