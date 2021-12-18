@@ -1,10 +1,11 @@
 from __future__ import annotations
+
+import enum
+
 from amber_runner.MD import *
-from typing import Optional, List, Union, Tuple, Iterator
-import gemmi
+from typing import Union, Tuple, Iterator
 from dataclasses import dataclass
 import os
-import re
 
 
 @dataclass
@@ -34,7 +35,7 @@ class Config:
 
 class PrepareHelper:
     @classmethod
-    def estimate_weight(cls, st: gemmi.Structure):
+    def estimate_weight(cls, st: "gemmi.Structure"):
         mass = 0.0
         aname_map = {"Na+": 22.989769, "Cl-": 35.453}
         element_map = {"P": 30.973762, "H": 1.00794, "C": 12.0107, "S": 32.065, "O": 15.999, "N": 14.0067}
@@ -50,7 +51,7 @@ class PrepareHelper:
         return mass
 
     @classmethod
-    def estimate_n_water_molecules(cls, st: gemmi.Structure):
+    def estimate_n_water_molecules(cls, st: "gemmi.Structure"):
         psv = 0.74
         MW = cls.estimate_weight(st)
         nau = 1
@@ -68,7 +69,7 @@ class PrepareHelper:
         return int(nwat)
 
     @classmethod
-    def find_ss_bond_pairs(cls, st: gemmi.Structure) -> Iterator[Tuple[int, int]]:
+    def find_ss_bond_pairs(cls, st: "gemmi.Structure") -> Iterator[Tuple[int, int]]:
         cyx_residues = []
         for chain in st[0]:
             for residue in chain:
@@ -85,13 +86,14 @@ class PrepareHelper:
                     yield ri.seqid.num, rj.seqid.num
 
     @classmethod
-    def write_sf_dat_file(cls, mtz: gemmi.Mtz,
+    def write_sf_dat_file(cls, mtz: "gemmi.Mtz",
                           output_filename: Union[os.PathLike, str]
                           ):
         """Write .tab file for pmemd.arx
         :param mtz: mtz file with P1 symmetry
         :param output_filename: output .dat filename
         """
+        import re
 
         assert mtz.spacegroup.hm == "P 1"
 
@@ -127,7 +129,7 @@ class PrepareHelper:
                 output.write(f"{h:3.0f} {k:3.0f} {l:3.0f} {fobs:15.8e} {sigma:15.8e} {r:1.0f}\n")
 
     @classmethod
-    def get_b_factors(cls, st: gemmi.Structure):
+    def get_b_factors(cls, st: "gemmi.Structure"):
         return [
             at.b_iso
             for res in cls.get_residues(st)
@@ -135,15 +137,16 @@ class PrepareHelper:
         ]
 
     @classmethod
-    def get_residues(cls, st: gemmi.Structure):
+    def get_residues(cls, st: "gemmi.Structure"):
         assert len(st) == 1, "Structure MUST have one MODEL"
         for chain in st[0]:
             for residue in chain:
                 yield residue
 
     @classmethod
-    def copy_b_factors(cls, src: gemmi.Structure, dst: gemmi.Structure):
+    def copy_b_factors(cls, src: "gemmi.Structure", dst: "gemmi.Structure"):
         import warnings
+        import gemmi
         target_residues = list(cls.get_residues(dst))
         reference_residues = list(cls.get_residues(src))
 
@@ -177,7 +180,7 @@ class Prepare(Step, PrepareHelper):
                  input_mtz_path: str,
                  config: Config,
                  ):
-        super().__init__(name)
+        Step.__init__(self, name)
 
         self.charge = None
         self.input_pdb_path = input_pdb_path
@@ -252,7 +255,7 @@ class Prepare(Step, PrepareHelper):
     def wbox_inpcrd_path(self):
         return str(self.step_dir / "wbox.inpcrd")
 
-    def check_occupancy(self, st: gemmi.Structure):
+    def check_occupancy(self, st: "gemmi.Structure"):
         import gemmi
         for model in st:
             for chain in model:
@@ -261,7 +264,7 @@ class Prepare(Step, PrepareHelper):
                         if atom.occ < 1.0:
                             raise RuntimeError(f'Atom {atom} occupancy is less than one')
 
-    def remove_water_and_alt_conformations(self) -> gemmi.Structure:
+    def remove_water_and_alt_conformations(self) -> "gemmi.Structure":
         import gemmi
 
         input_structure = gemmi.read_pdb(self.input_pdb_path, split_chain_on_ter=True)
@@ -270,13 +273,14 @@ class Prepare(Step, PrepareHelper):
 
         return input_structure
 
-    def protonate(self, input_structure: gemmi.Structure):
+    def protonate(self, input_structure: "gemmi.Structure"):
         import subprocess
         input_structure.write_pdb(self.input_pdb_protonated_path, numbered_ter=False, ter_ignores_type=True)
         subprocess.check_call([
             "conda", "run",
             "pdb4amber",
-            "-d", "--reduce",
+            "-d",
+            "--reduce",
             "-i", self.input_pdb_protonated_path,
             '-o', self.input_pdb_reduced_path
         ])
@@ -351,15 +355,16 @@ class Prepare(Step, PrepareHelper):
         wbox_pdb.write_pdb(self.wbox_dry_pdb_path, numbered_ter=False, ter_ignores_type=True)
 
     def prepare_structure_factors(self):
+        import gemmi
         mtz = gemmi.read_mtz_file(self.input_mtz_path)
         self.write_sf_dat_file(mtz=mtz,
                                output_filename=self.structure_factors_dat)
 
-    def prepare_structure(self, input_structure: gemmi.Structure):
+    def prepare_structure(self, input_structure: "gemmi.Structure"):
         import gemmi
         import shutil
         import subprocess
-        st: gemmi.Structure = gemmi.read_pdb(self.wbox_dry_pdb_path, split_chain_on_ter=True)
+        st: "gemmi.Structure" = gemmi.read_pdb(self.wbox_dry_pdb_path, split_chain_on_ter=True)
         st.cell = input_structure.cell
         n_wat = self.estimate_n_water_molecules(st)
 
@@ -454,6 +459,7 @@ class Prepare(Step, PrepareHelper):
         ])
 
     def prepare_files_for_next_stages(self, md: RefinementProtocol):
+        from amber_runner.inputs import AmberInput
         # Set global attributes
         md.sander.prmtop = self.wbox_xray_prmtop_path
         md.sander.inpcrd = self.wbox_inpcrd_path
@@ -515,7 +521,7 @@ class Prepare(Step, PrepareHelper):
             pdb_infile=self.wbox_dry_pdb_path,
             pdb_read_coordinates=False,
             reflection_infile=self.structure_factors_dat,
-            atom_selection_mask=f'1:{self.n_polymer_residues}',
+            atom_selection_mask=f':1-{self.n_polymer_residues}',
             xray_weight_initial=0.0,
             xray_weight_final=1.0,
             target='ml',
@@ -550,7 +556,7 @@ class Prepare(Step, PrepareHelper):
             pdb_infile=self.wbox_dry_pdb_path,
             pdb_read_coordinates=False,
             reflection_infile=self.structure_factors_dat,
-            atom_selection_mask=f'1:{self.n_polymer_residues}',
+            atom_selection_mask=f':1-{self.n_polymer_residues}',
             xray_weight_initial=1.0,
             xray_weight_final=1.0,
             target='ml',
@@ -593,10 +599,25 @@ class Prepare(Step, PrepareHelper):
         self.prepare_files_for_next_stages(md)
 
 
+class StructureSetType(enum.Enum):
+    D_SET = 1
+    S_SET = 2
+
+
 class RefinementProtocol(MdProtocol):
-    def __init__(self):
-        wd = Path("protocol_wd")
-        self.mkdir(wd)
+    def __init__(self, pdb_code: str, input_prefix: Path, output_prefix: Path, input_type: StructureSetType):
+
+        if input_type == StructureSetType.D_SET:
+            input_pdb_filename = f"{pdb_code}.D-set.pdb"
+            structure_set_dir = "D-set"
+        elif input_type == StructureSetType.S_SET:
+            input_pdb_filename = f"{pdb_code}.S-set.pdb"
+            structure_set_dir = "S-set"
+        else:
+            assert False
+
+        wd = output_prefix / structure_set_dir / pdb_code
+        wd.mkdir(mode=0o755, exist_ok=True, parents=True)
         MdProtocol.__init__(self, name="B0", wd=wd)
 
         self.sander = SanderCommand()
@@ -610,8 +631,8 @@ class RefinementProtocol(MdProtocol):
 
         self.prepare = Prepare(
             name="prepare",
-            input_pdb_path=(Path.cwd() / "2msi.pdb").absolute().__str__(),
-            input_mtz_path=(Path.cwd() / "2msi.mtz").absolute().__str__(),
+            input_pdb_path=str((input_prefix / pdb_code / input_pdb_filename).absolute()),
+            input_mtz_path=str((input_prefix / pdb_code / f"{pdb_code}.mtz").absolute()),
             config=global_config
         )
 
@@ -622,9 +643,105 @@ class RefinementProtocol(MdProtocol):
 
 
 def main():
-    md = RefinementProtocol()
-    with ChangeDirectory(md.wd):
-        md.run()
+    pdb_codes = [
+        "149l",
+        "171l",
+        "1ae2",
+        "1ae3",
+        "1ail",
+        "1ame",
+        "1anu",
+        "1bkl",
+        "1bmg",
+        "1dt4",
+        "1du5",
+        "1k40",
+        "1kem",
+        "1loz",
+        "1mjc",
+        "1o9h",
+        "1q2y",
+        "1rn7",
+        "1smt",
+        "1uue",
+        "1w45",
+        "1wdx",
+        "1x6j",
+        "1yib",
+        "1z27",
+        "2aak",
+        "2eql",
+        "2fht",
+        "2fkl",
+        "2j7i",
+        "2jee",
+        "2msi",
+        "2nn4",
+        "2nsb",
+        "2o85",
+        "2o87",
+        "2o89",
+        "2ont",
+        "2qdo",
+        "2snw",
+        "3dvp",
+        "3fis",
+        "3hpm",
+        "3k9p",
+        "3le4",
+        "3m3t",
+        "3ndf",
+        "3q2c",
+        "3qd7",
+        "3rd3",
+        "3tsv",
+        "3u4z",
+        "3zq7",
+        "3zy1",
+        "3zye",
+        "4bhc",
+        "4c0m",
+        "4c86",
+        "4f17",
+        "4f26",
+        "4fis",
+        "4hll",
+        "4niq",
+        "4oyc",
+        "4qfq",
+        "4ug3",
+        "4wfw",
+        "4x37",
+        "5a7l",
+        "5arj",
+        "5ewr",
+        "5f6a",
+        "5fd7",
+        "5h79",
+        "5jqz",
+        "5lhx",
+        "5t8l",
+        "5t8n",
+        "5teo",
+        "5tut",
+        "5xbh",
+        "6cyr",
+        "6dz6",
+        "6msi",
+    ]
+
+    for pdb_code in pdb_codes:
+        for input_type in [
+            StructureSetType.S_SET,
+            StructureSetType.D_SET
+        ]:
+            md = RefinementProtocol(
+                pdb_code=pdb_code,
+                input_prefix=Path.cwd() / "data" / "input",
+                output_prefix=Path.cwd() / "data" / "output",
+                input_type=input_type
+            )
+            md.save(md.wd / "state.dill")
 
 
 if __name__ == '__main__':
