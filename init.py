@@ -732,13 +732,17 @@ class RefinementProtocol(MdProtocol):
         self.cooling = SingleSanderCall("cooling")
 
 
-def create_tasks():
+def create_tasks(subset: str):
     tasks = []
     for pdb_code in ["2msi"]:
         md = RefinementProtocol(
-            input_pdb_path=Path.cwd() / "data" / "input" / pdb_code / f"{pdb_code}.pdb",
-            input_mtz_path=Path.cwd() / "data" / "input" / pdb_code / f"{pdb_code}.mtz",
-            output_dir=Path.cwd() / "data" / "output" / pdb_code / "as_is",
+            input_pdb_path=(
+                Path.cwd() / "data" / "input" / pdb_code / subset / f"{pdb_code}.pdb"
+            ),
+            input_mtz_path=(
+                Path.cwd() / "data" / "input" / pdb_code / subset / f"{pdb_code}.mtz"
+            ),
+            output_dir=(Path.cwd() / "data" / "output" / pdb_code / subset),
         )
         md.save(md.wd / "state.dill")
         tasks.append(md)
@@ -763,9 +767,9 @@ def run_sequentially_inplace(tasks: List[Task]):
 
 
 def main():
-    tasks = create_tasks()
+    tasks = create_tasks("test")
     assert tasks
-    # run_sequentially_inplace(tasks)
+    run_sequentially_inplace(tasks)
     # run_all_locally(tasks)
 
 
