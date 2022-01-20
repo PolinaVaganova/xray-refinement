@@ -221,10 +221,54 @@ def add_missing_atoms(st: gemmi.Structure) -> gemmi.Structure:
             return read_pdb(result_pdb)
 
 
+def set_b_factors_to(st: gemmi.Structure, value: float = 0) -> gemmi.Structure:
+    result = st.clone()
+    for model in result:
+        for chain in model:
+            for residue in chain:
+                for atom in residue:
+                    atom.b_iso = value
+    return result
+
+
 def add_missing_b_factors(
     st: gemmi.Structure, reference: gemmi.Structure
 ) -> gemmi.Structure:
-    raise NotImplementedError()
+    index: gemmi.NeighborSearch = gemmi.NeighborSearch(reference, 3.0)
+    index.populate()
+
+    result = set_b_factors_to(st, 0)
+    total_assigned = 0
+    min_distance = 0
+    max_distance = 1.0
+    while True:
+        n_assigned = 0
+        for model in result:
+            for chain in model:
+                for residue in chain:
+                    for atom in residue:
+                        if atom.b_iso > 0:
+                            continue
+                        closest = index.find_neighbors(atom, min_distance, max_distance)
+                        best_dist = 99
+                        best_ref_at = None
+                        for mark in closest:
+                            ref_at = mark.to_cra(reference[0]).atom
+                            dist = ref_at.pos.dist(atom.pos)
+                            if dist < best_dist:
+                                best_ref_at = ref_at
+                                best_dist = dist
+                        if best_ref_at is not None:
+                            atom.b_iso = best_ref_at.b_iso
+                            n_assigned += 1
+        total_assigned += n_assigned
+        min_distance = max_distance
+        max_distance += 1
+
+        if n_assigned == 0:
+            break
+
+    return result
 
 
 def add_missing_occupancies(
