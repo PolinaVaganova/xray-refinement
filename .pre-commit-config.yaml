@@ -23,3 +23,10 @@ repos:
         entry: flake8 --max-line-length=88 --extend-ignore=E203
         types: [python]
         stages: [commit]
+    -   id: pytest
+        name: pytest
+        language: system
+        entry: pytest
+        pass_filenames: false
+        always_run: true
+        stages: [push]
