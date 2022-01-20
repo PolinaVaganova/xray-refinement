@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Tuple, Union
+from typing import Iterator, List, Tuple, Union
 
 import gemmi
 from amber_runner.MD import MdProtocol, PmemdCommand, SingleSanderCall, Step
+from remote_runner import Task
 
 
 @dataclass
@@ -294,7 +295,9 @@ class Prepare(Step, PrepareHelper):
     def remove_water_and_alt_conformations(self) -> "gemmi.Structure":
         import gemmi
 
-        input_structure = gemmi.read_pdb(self.input_pdb_path, split_chain_on_ter=True)
+        input_structure = gemmi.read_pdb(
+            str(self.input_pdb_path), split_chain_on_ter=True
+        )
         input_structure.remove_waters()
         input_structure.remove_alternative_conformations()
 
@@ -308,8 +311,6 @@ class Prepare(Step, PrepareHelper):
         )
         subprocess.check_call(
             [
-                "conda",
-                "run",
                 "pdb4amber",
                 "-d",
                 "--reduce",
@@ -399,7 +400,7 @@ class Prepare(Step, PrepareHelper):
     def prepare_structure_factors(self):
         import gemmi
 
-        mtz = gemmi.read_mtz_file(self.input_mtz_path)
+        mtz = gemmi.read_mtz_file(str(self.input_mtz_path))
         self.write_sf_dat_file(mtz=mtz, output_filename=self.structure_factors_dat)
 
     def prepare_structure(self, input_structure: "gemmi.Structure"):
@@ -731,14 +732,41 @@ class RefinementProtocol(MdProtocol):
         self.cooling = SingleSanderCall("cooling")
 
 
-def main():
+def create_tasks():
+    tasks = []
     for pdb_code in ["2msi"]:
         md = RefinementProtocol(
             input_pdb_path=Path.cwd() / "data" / "input" / pdb_code / f"{pdb_code}.pdb",
             input_mtz_path=Path.cwd() / "data" / "input" / pdb_code / f"{pdb_code}.mtz",
-            output_dir=Path.cwd() / "data" / "output" / pdb_code,
+            output_dir=Path.cwd() / "data" / "output" / pdb_code / "as_is",
         )
         md.save(md.wd / "state.dill")
+        tasks.append(md)
+    return tasks
+
+
+def run_all_locally(tasks: List[Task]):
+    import remote_runner
+    from remote_runner import LocalWorker, Pool
+
+    remote_runner.log_to(".remote-runner.log", level="DEBUG")
+    workers = [LocalWorker()]
+    Pool(workers).run(tasks)
+
+
+def run_sequentially_inplace(tasks: List[Task]):
+    from remote_runner.utility import ChangeDirectory
+
+    for md in tasks:
+        with ChangeDirectory(md.wd):
+            md.run()
+
+
+def main():
+    tasks = create_tasks()
+    assert tasks
+    # run_sequentially_inplace(tasks)
+    # run_all_locally(tasks)
 
 
 if __name__ == "__main__":
