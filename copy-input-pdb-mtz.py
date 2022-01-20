@@ -1,6 +1,6 @@
+import shutil
 from pathlib import Path
 from typing import List
-import shutil
 
 
 def get_pdb_codes() -> List[str]:

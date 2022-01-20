@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import enum
-
-from amber_runner.MD import *
-from typing import Union, Tuple, Iterator
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterator, Tuple, Union
+
+import gemmi
+from amber_runner.MD import MdProtocol, PmemdCommand, SingleSanderCall, Step
 
 
 @dataclass
@@ -21,14 +22,23 @@ class Config:
     @classmethod
     def from_config_dir(cls, config_dir: Path):
         config = cls(
-            parmed_summary_in_path=(config_dir / "parmed.summary.in").absolute().__str__(),
-            draft_tleap_config_path=(config_dir / "draft.tleap.in.config").absolute().__str__(),
-            production_tleap_config_path=(config_dir / "production.tleap.in.config").absolute().__str__(),
+            parmed_summary_in_path=(config_dir / "parmed.summary.in")
+            .absolute()
+            .__str__(),
+            draft_tleap_config_path=(config_dir / "draft.tleap.in.config")
+            .absolute()
+            .__str__(),
+            production_tleap_config_path=(config_dir / "production.tleap.in.config")
+            .absolute()
+            .__str__(),
             na_ion_pdb_path=(config_dir / "na.pdb").absolute().__str__(),
             cl_ion_pdb_path=(config_dir / "cl.pdb").absolute().__str__(),
             water_pdb_path=(config_dir / "spce.pdb").absolute().__str__(),
             parmed_add_xray_parameters_in_config=(
-                    config_dir / "parmed.add-xray-parameters.in.config").absolute().__str__()
+                config_dir / "parmed.add-xray-parameters.in.config"
+            )
+            .absolute()
+            .__str__(),
         )
         return config
 
@@ -38,7 +48,14 @@ class PrepareHelper:
     def estimate_weight(cls, st: "gemmi.Structure"):
         mass = 0.0
         aname_map = {"Na+": 22.989769, "Cl-": 35.453}
-        element_map = {"P": 30.973762, "H": 1.00794, "C": 12.0107, "S": 32.065, "O": 15.999, "N": 14.0067}
+        element_map = {
+            "P": 30.973762,
+            "H": 1.00794,
+            "C": 12.0107,
+            "S": 32.065,
+            "O": 15.999,
+            "N": 14.0067,
+        }
         for m in st:
             for c in m:
                 for r in c:
@@ -86,9 +103,9 @@ class PrepareHelper:
                     yield ri.seqid.num, rj.seqid.num
 
     @classmethod
-    def write_sf_dat_file(cls, mtz: "gemmi.Mtz",
-                          output_filename: Union[os.PathLike, str]
-                          ):
+    def write_sf_dat_file(
+        cls, mtz: "gemmi.Mtz", output_filename: Union[os.PathLike, str]
+    ):
         """Write .tab file for pmemd.arx
         :param mtz: mtz file with P1 symmetry
         :param output_filename: output .dat filename
@@ -109,9 +126,11 @@ class PrepareHelper:
                 R_FREE_FLAG = column
 
         if R_FREE_FLAG is None:
-            raise RuntimeError(f"MTZ file missing R-FREE-FLAG column (pattern: `{r_free_pattern_string}`)"
-                               f"\nPresent columns: {[column.label for column in mtz.columns]}"
-                               )
+            raise RuntimeError(
+                f"MTZ file missing R-FREE-FLAG column "
+                f"(pattern: `{r_free_pattern_string}`)"
+                f"\nPresent columns: {[column.label for column in mtz.columns]}"
+            )
 
         H, K, L, FOBS, SIGMA_FOBS = [
             mtz.column_with_label(label) or missing_column(label)
@@ -122,19 +141,19 @@ class PrepareHelper:
         flag_is_one = n_positive_r_flags > len(R_FREE_FLAG) / 2
 
         with open(output_filename, "w") as output:
-            output.write(f'{len(H)} 0\n')
+            output.write(f"{len(H)} 0\n")
 
-            for h, k, l, fobs, sigma, r_flag in zip(H, K, L, FOBS, SIGMA_FOBS, R_FREE_FLAG):
+            for h, k, l, fobs, sigma, r_flag in zip(
+                H, K, L, FOBS, SIGMA_FOBS, R_FREE_FLAG
+            ):
                 r = r_flag if flag_is_one else 1 - r_flag
-                output.write(f"{h:3.0f} {k:3.0f} {l:3.0f} {fobs:15.8e} {sigma:15.8e} {r:1.0f}\n")
+                output.write(
+                    f"{h:3.0f} {k:3.0f} {l:3.0f} {fobs:15.8e} {sigma:15.8e} {r:1.0f}\n"
+                )
 
     @classmethod
     def get_b_factors(cls, st: "gemmi.Structure"):
-        return [
-            at.b_iso
-            for res in cls.get_residues(st)
-            for at in res
-        ]
+        return [at.b_iso for res in cls.get_residues(st) for at in res]
 
     @classmethod
     def get_residues(cls, st: "gemmi.Structure"):
@@ -146,7 +165,9 @@ class PrepareHelper:
     @classmethod
     def copy_b_factors(cls, src: "gemmi.Structure", dst: "gemmi.Structure"):
         import warnings
+
         import gemmi
+
         target_residues = list(cls.get_residues(dst))
         reference_residues = list(cls.get_residues(src))
 
@@ -166,25 +187,28 @@ class PrepareHelper:
                     prev_res = ref_res
                     prev_b_iso = at.b_iso
                 except RuntimeError as e:
-                    warnings.warn(f"B-factor {prev_b_iso:.2f} assigned "
-                                  f"to {tgt_res}.{at.name} "
-                                  f"from {prev_res}.{prev_at.name} "
-                                  f"({e})")
+                    warnings.warn(
+                        f"B-factor {prev_b_iso:.2f} assigned "
+                        f"to {tgt_res}.{at.name} "
+                        f"from {prev_res}.{prev_at.name} "
+                        f"({e})"
+                    )
                     at.b_iso = prev_b_iso
 
 
 class Prepare(Step, PrepareHelper):
-
-    def __init__(self, name: str,
-                 input_pdb_path: str,
-                 input_mtz_path: str,
-                 config: Config,
-                 ):
+    def __init__(
+        self,
+        name: str,
+        input_pdb_path: Path,
+        input_mtz_path: Path,
+        config: Config,
+    ):
         Step.__init__(self, name)
 
         self.charge = None
-        self.input_pdb_path = input_pdb_path
-        self.input_mtz_path = input_mtz_path
+        self.input_pdb_path: Path = input_pdb_path
+        self.input_mtz_path: Path = input_mtz_path
 
         self.config: Config = config
 
@@ -257,12 +281,15 @@ class Prepare(Step, PrepareHelper):
 
     def check_occupancy(self, st: "gemmi.Structure"):
         import gemmi
+
         for model in st:
             for chain in model:
                 for residue in chain:
                     for atom in residue:  # type: gemmi.Atom
                         if atom.occ < 1.0:
-                            raise RuntimeError(f'Atom {atom} occupancy is less than one')
+                            raise RuntimeError(
+                                f"Atom {atom} occupancy is less than one"
+                            )
 
     def remove_water_and_alt_conformations(self) -> "gemmi.Structure":
         import gemmi
@@ -275,19 +302,28 @@ class Prepare(Step, PrepareHelper):
 
     def protonate(self, input_structure: "gemmi.Structure"):
         import subprocess
-        input_structure.write_pdb(self.input_pdb_protonated_path, numbered_ter=False, ter_ignores_type=True)
-        subprocess.check_call([
-            "conda", "run",
-            "pdb4amber",
-            "-d",
-            "--reduce",
-            "-i", self.input_pdb_protonated_path,
-            '-o', self.input_pdb_reduced_path
-        ])
+
+        input_structure.write_pdb(
+            self.input_pdb_protonated_path, numbered_ter=False, ter_ignores_type=True
+        )
+        subprocess.check_call(
+            [
+                "conda",
+                "run",
+                "pdb4amber",
+                "-d",
+                "--reduce",
+                "-i",
+                self.input_pdb_protonated_path,
+                "-o",
+                self.input_pdb_reduced_path,
+            ]
+        )
         assert Path(self.input_pdb_reduced_path).exists()
 
     def build_unit_cell(self):
         import gemmi
+
         st = gemmi.read_pdb(self.input_pdb_reduced_path, split_chain_on_ter=True)
         g = gemmi.find_spacegroup_by_name(st.spacegroup_hm)
 
@@ -295,7 +331,9 @@ class Prepare(Step, PrepareHelper):
             for residue in chain:
                 for atom in residue:
                     fractional = cell.fractionalize(atom.pos)
-                    transformed = gemmi.Fractional(*op.apply_to_xyz(fractional.tolist()))
+                    transformed = gemmi.Fractional(
+                        *op.apply_to_xyz(fractional.tolist())
+                    )
                     cartesian = cell.orthogonalize(transformed)
                     atom.pos = cartesian
 
@@ -317,61 +355,69 @@ class Prepare(Step, PrepareHelper):
         with open(self.config.draft_tleap_config_path) as config:
             tleap_in_config = config.read()
         tleap_in = tleap_in_config.format(
-            step_dir=self.step_dir,
-            input_pdb=self.input_pdb_p1_path
+            step_dir=self.step_dir, input_pdb=self.input_pdb_p1_path
         )
 
         with open(self.draft_tleap_in_path, "w") as f:
             f.write(tleap_in)
 
-        subprocess.check_call([
-            'tleap', '-s',
-            '-f', self.draft_tleap_in_path
-        ])
+        subprocess.check_call(["tleap", "-s", "-f", self.draft_tleap_in_path])
 
-        parmed_output = subprocess.check_output([
-            'conda', 'run',
-            'parmed',
-            self.wbox_prmtop,
-            self.config.parmed_summary_in_path,
-        ]).decode('utf-8')
+        parmed_output = subprocess.check_output(
+            [
+                "conda",
+                "run",
+                "parmed",
+                self.wbox_prmtop,
+                self.config.parmed_summary_in_path,
+            ]
+        ).decode("utf-8")
 
         with open(self.parmed_output, "w") as out:
             out.write(parmed_output)
 
-        for line in parmed_output.split('\n'):
-            if 'Total charge (e-)' in line:
-                self.charge = int(float(line.split(':')[-1].strip().split()[0]))
+        for line in parmed_output.split("\n"):
+            if "Total charge (e-)" in line:
+                self.charge = int(float(line.split(":")[-1].strip().split()[0]))
                 return
 
         raise RuntimeError("couldn't create a draft refinement unit cell")
 
     def prepare_b_factors(self):
         import gemmi
-        input_pdb_protonated = gemmi.read_pdb(self.input_pdb_protonated_path, split_chain_on_ter=True)
+
+        input_pdb_protonated = gemmi.read_pdb(
+            self.input_pdb_protonated_path, split_chain_on_ter=True
+        )
         wbox_pdb = gemmi.read_pdb(self.wbox_dry_pdb_path, split_chain_on_ter=True)
         self.copy_b_factors(input_pdb_protonated, wbox_pdb)
         self.n_polymer_residues = len(list(self.get_residues(wbox_pdb)))
-        wbox_pdb.write_pdb(self.wbox_dry_pdb_path, numbered_ter=False, ter_ignores_type=True)
+        wbox_pdb.write_pdb(
+            self.wbox_dry_pdb_path, numbered_ter=False, ter_ignores_type=True
+        )
 
     def prepare_structure_factors(self):
         import gemmi
+
         mtz = gemmi.read_mtz_file(self.input_mtz_path)
-        self.write_sf_dat_file(mtz=mtz,
-                               output_filename=self.structure_factors_dat)
+        self.write_sf_dat_file(mtz=mtz, output_filename=self.structure_factors_dat)
 
     def prepare_structure(self, input_structure: "gemmi.Structure"):
-        import gemmi
         import shutil
         import subprocess
-        st: "gemmi.Structure" = gemmi.read_pdb(self.wbox_dry_pdb_path, split_chain_on_ter=True)
+
+        import gemmi
+
+        st: "gemmi.Structure" = gemmi.read_pdb(
+            self.wbox_dry_pdb_path, split_chain_on_ter=True
+        )
         st.cell = input_structure.cell
         n_wat = self.estimate_n_water_molecules(st)
 
         n_ions = abs(self.charge)
         n_water_molecules = n_wat - 2 * n_ions
 
-        st.spacegroup_hm = 'P 1'
+        st.spacegroup_hm = "P 1"
         st.write_pdb(self.wbox_dry_pdb_path, numbered_ter=False, ter_ignores_type=True)
 
         n_protein_atoms = st[0].count_atom_sites()
@@ -379,87 +425,134 @@ class Prepare(Step, PrepareHelper):
         if self.charge == 0:
             shutil.copyfile(self.wbox_dry_pdb_path, self.input_pdb_neutral)
         else:
-            ion_type = self.config.na_ion_pdb_path if self.charge < 0 else self.config.cl_ion_pdb_path
-            subprocess.check_call([
-                'AddToBox',
-                '-c', self.wbox_dry_pdb_path,
-                '-a', ion_type,
-                '-na', str(n_ions),
-                '-o', self.input_pdb_neutral,
-                '-P', str(n_protein_atoms),
-                '-RP', str(3.0),
-                '-RW', str(6.0),
-                '-G', str(0.2),
-                '-V', str(1)
-            ])
-        subprocess.check_call([
-            'AddToBox',
-            '-c', self.input_pdb_neutral,
-            '-a', self.config.water_pdb_path,
-            '-na', str(n_water_molecules),
-            '-o', self.production_tleap_input_pdb_path,
-            '-P', str(n_protein_atoms + n_ions),
-            '-RP', str(3.0),
-            '-RW', str(3.0),
-            '-G', str(0.2),
-            '-V', str(1)
-        ])
+            ion_type = (
+                self.config.na_ion_pdb_path
+                if self.charge < 0
+                else self.config.cl_ion_pdb_path
+            )
+            subprocess.check_call(
+                [
+                    "AddToBox",
+                    "-c",
+                    self.wbox_dry_pdb_path,
+                    "-a",
+                    ion_type,
+                    "-na",
+                    str(n_ions),
+                    "-o",
+                    self.input_pdb_neutral,
+                    "-P",
+                    str(n_protein_atoms),
+                    "-RP",
+                    str(3.0),
+                    "-RW",
+                    str(6.0),
+                    "-G",
+                    str(0.2),
+                    "-V",
+                    str(1),
+                ]
+            )
+        subprocess.check_call(
+            [
+                "AddToBox",
+                "-c",
+                self.input_pdb_neutral,
+                "-a",
+                self.config.water_pdb_path,
+                "-na",
+                str(n_water_molecules),
+                "-o",
+                self.production_tleap_input_pdb_path,
+                "-P",
+                str(n_protein_atoms + n_ions),
+                "-RP",
+                str(3.0),
+                "-RW",
+                str(3.0),
+                "-G",
+                str(0.2),
+                "-V",
+                str(1),
+            ]
+        )
 
         ss_bonds = self.find_ss_bond_pairs(st)
-        ss_bond_commands = "\n".join(f"bond wbox.{i}.SG wbox.{j}.SG" for i, j in ss_bonds)
+        ss_bond_commands = "\n".join(
+            f"bond wbox.{i}.SG wbox.{j}.SG" for i, j in ss_bonds
+        )
 
         with open(self.config.production_tleap_config_path) as config:
             with open(self.production_tleap_in_path, "w") as rc:
-                rc.write(config.read().format(
-                    reference_pdb=self.production_tleap_input_pdb_path,
-                    bonds_commands=ss_bond_commands,
-                    step_dir=self.step_dir
-                ))
+                rc.write(
+                    config.read().format(
+                        reference_pdb=self.production_tleap_input_pdb_path,
+                        bonds_commands=ss_bond_commands,
+                        step_dir=self.step_dir,
+                    )
+                )
 
-        subprocess.check_call([
-            'tleap', '-s',
-            '-f', self.production_tleap_in_path
-        ])
+        subprocess.check_call(["tleap", "-s", "-f", self.production_tleap_in_path])
 
-        subprocess.check_call([
-            'ChBox',
-            '-c', self.wbox_inpcrd_path,
-            '-o', self.wbox_inpcrd_path,
-            '-X', str(st.cell.a),
-            '-Y', str(st.cell.b),
-            '-Z', str(st.cell.c),
-            '-al', str(st.cell.alpha),
-            '-bt', str(st.cell.beta),
-            '-gm', str(st.cell.gamma)
-        ])
+        subprocess.check_call(
+            [
+                "ChBox",
+                "-c",
+                self.wbox_inpcrd_path,
+                "-o",
+                self.wbox_inpcrd_path,
+                "-X",
+                str(st.cell.a),
+                "-Y",
+                str(st.cell.b),
+                "-Z",
+                str(st.cell.c),
+                "-al",
+                str(st.cell.alpha),
+                "-bt",
+                str(st.cell.beta),
+                "-gm",
+                str(st.cell.gamma),
+            ]
+        )
 
     def prepare_xray_prmtop(self):
         import subprocess
+
         with open(self.config.parmed_add_xray_parameters_in_config) as f:
             parmed_in = f.read().format(
                 wbox_pdb_path=self.wbox_pdb_path,
-                out_prmtop_path=self.wbox_tmp_prmtop_path
+                out_prmtop_path=self.wbox_tmp_prmtop_path,
             )
 
         with open(self.parmed_add_xray_parameters_in, "w") as f:
             f.write(parmed_in)
-        subprocess.check_call([
-            'conda', 'run',
-            'parmed',
-            '--overwrite',
-            self.wbox_prmtop,
-            self.parmed_add_xray_parameters_in,
-        ])
+        subprocess.check_call(
+            [
+                "conda",
+                "run",
+                "parmed",
+                "--overwrite",
+                self.wbox_prmtop,
+                self.parmed_add_xray_parameters_in,
+            ]
+        )
 
-        subprocess.check_call([
-            "add_xray",
-            "-i", self.wbox_tmp_prmtop_path,
-            "-o", self.wbox_xray_prmtop_path,
-            "-scattering", "xray"
-        ])
+        subprocess.check_call(
+            [
+                "add_xray",
+                "-i",
+                self.wbox_tmp_prmtop_path,
+                "-o",
+                self.wbox_xray_prmtop_path,
+                "-scattering",
+                "xray",
+            ]
+        )
 
     def prepare_files_for_next_stages(self, md: RefinementProtocol):
         from amber_runner.inputs import AmberInput
+
         # Set global attributes
         md.sander.prmtop = self.wbox_xray_prmtop_path
         md.sander.inpcrd = self.wbox_inpcrd_path
@@ -467,14 +560,16 @@ class Prepare(Step, PrepareHelper):
 
         # Configure minimize
         md.minimize.input.cntrl(
-            imin=1, maxcyc=500, ncyc=150,
+            imin=1,
+            maxcyc=500,
+            ncyc=150,
             ntb=1,
             ntr=0,
-            cut=8.,
+            cut=8.0,
         )
         # Configure heating
         md.heating.input.cntrl(
-            cut=8.,
+            cut=8.0,
             dt=0.002,
             imin=0,
             ioutfm=1,
@@ -496,36 +591,48 @@ class Prepare(Step, PrepareHelper):
             AmberInput.GroupSelection(
                 title="Keep protein fixed with weak restraints",
                 weight=10.0,
-                residue_id_ranges=[(1, self.n_polymer_residues)]
+                residue_id_ranges=[(1, self.n_polymer_residues)],
             )
         )
 
         # Configure evolution
         md.evolution.input.cntrl(
             imin=0,
-            irest=1, ntx=5, iwrap=1,
+            irest=1,
+            ntx=5,
+            iwrap=1,
             ntb=1,
-            ntt=3, gamma_ln=3., ig=-1,
-            tempi=298.0, temp0=298.0,
-            ntp=0, pres0=1.0, taup=2.0,
+            ntt=3,
+            gamma_ln=3.0,
+            ig=-1,
+            tempi=298.0,
+            temp0=298.0,
+            ntp=0,
+            pres0=1.0,
+            taup=2.0,
             cut=8.0,
             ntr=0,
-            ntc=2, ntf=2,
-            nstlim=5000, nscm=100, dt=0.002,
-            ntpr=100, ntwx=100, ntwr=5000,
-            ioutfm=1
+            ntc=2,
+            ntf=2,
+            nstlim=5000,
+            nscm=100,
+            dt=0.002,
+            ntpr=100,
+            ntwx=100,
+            ntwr=5000,
+            ioutfm=1,
         )
 
         md.evolution.input._get("xray")(
-            spacegroup_name='P1',
+            spacegroup_name="P1",
             pdb_infile=self.wbox_dry_pdb_path,
             pdb_read_coordinates=False,
             reflection_infile=self.structure_factors_dat,
-            atom_selection_mask=f':1-{self.n_polymer_residues}',
+            atom_selection_mask=f":1-{self.n_polymer_residues}",
             xray_weight_initial=0.0,
             xray_weight_final=1.0,
-            target='ml',
-            bulk_solvent_model='afonine-2013'
+            target="ml",
+            bulk_solvent_model="afonine-2013",
         )
 
         # Configure cool
@@ -552,15 +659,15 @@ class Prepare(Step, PrepareHelper):
         )
 
         md.cooling.input._get("xray")(
-            spacegroup_name='P1',
+            spacegroup_name="P1",
             pdb_infile=self.wbox_dry_pdb_path,
             pdb_read_coordinates=False,
             reflection_infile=self.structure_factors_dat,
-            atom_selection_mask=f':1-{self.n_polymer_residues}',
+            atom_selection_mask=f":1-{self.n_polymer_residues}",
             xray_weight_initial=1.0,
             xray_weight_final=1.0,
-            target='ml',
-            bulk_solvent_model='afonine-2013'
+            target="ml",
+            bulk_solvent_model="afonine-2013",
         )
 
         for istep1, istep2, value1, value2 in [
@@ -582,8 +689,7 @@ class Prepare(Step, PrepareHelper):
             (4876, 5000, 0.0, 0.0),
         ]:
             md.cooling.input.varying_conditions.add(
-                type='TEMP0', istep1=istep1, istep2=istep2,
-                value1=value1, value2=value2
+                type="TEMP0", istep1=istep1, istep2=istep2, value1=value1, value2=value2
             )
 
     def run(self, md: RefinementProtocol):
@@ -599,28 +705,11 @@ class Prepare(Step, PrepareHelper):
         self.prepare_files_for_next_stages(md)
 
 
-class StructureSetType(enum.Enum):
-    D_SET = 1
-    S_SET = 2
-
-
 class RefinementProtocol(MdProtocol):
-    def __init__(self, pdb_code: str, input_prefix: Path, output_prefix: Path, input_type: StructureSetType):
-
-        if input_type == StructureSetType.D_SET:
-            input_pdb_filename = f"{pdb_code}.D-set.pdb"
-            structure_set_dir = "D-set"
-        elif input_type == StructureSetType.S_SET:
-            input_pdb_filename = f"{pdb_code}.S-set.pdb"
-            structure_set_dir = "S-set"
-        else:
-            assert False
-
-        wd = output_prefix / structure_set_dir / pdb_code
+    def __init__(self, input_pdb_path: Path, input_mtz_path: Path, output_dir: Path):
+        wd = output_dir
         wd.mkdir(mode=0o755, exist_ok=True, parents=True)
         MdProtocol.__init__(self, name="B0", wd=wd)
-
-        self.sander = SanderCommand()
 
         self.sander = PmemdCommand()
         self.sander.executable = ["pmemd.cuda"]
@@ -631,9 +720,9 @@ class RefinementProtocol(MdProtocol):
 
         self.prepare = Prepare(
             name="prepare",
-            input_pdb_path=str((input_prefix / pdb_code / input_pdb_filename).absolute()),
-            input_mtz_path=str((input_prefix / pdb_code / f"{pdb_code}.mtz").absolute()),
-            config=global_config
+            input_pdb_path=input_pdb_path,
+            input_mtz_path=input_mtz_path,
+            config=global_config,
         )
 
         self.minimize = SingleSanderCall("minimize")
@@ -643,106 +732,14 @@ class RefinementProtocol(MdProtocol):
 
 
 def main():
-    pdb_codes = [
-        "149l",
-        "171l",
-        "1ae2",
-        "1ae3",
-        "1ail",
-        "1ame",
-        "1anu",
-        "1bkl",
-        "1bmg",
-        "1dt4",
-        "1du5",
-        "1k40",
-        "1kem",
-        "1loz",
-        "1mjc",
-        "1o9h",
-        "1q2y",
-        "1rn7",
-        "1smt",
-        "1uue",
-        "1w45",
-        "1wdx",
-        "1x6j",
-        "1yib",
-        "1z27",
-        "2aak",
-        "2eql",
-        "2fht",
-        "2fkl",
-        "2j7i",
-        "2jee",
-        "2msi",
-        "2nn4",
-        "2nsb",
-        "2o85",
-        "2o87",
-        "2o89",
-        "2ont",
-        "2qdo",
-        "2snw",
-        "3dvp",
-        "3fis",
-        "3hpm",
-        "3k9p",
-        "3le4",
-        "3m3t",
-        "3ndf",
-        "3q2c",
-        "3qd7",
-        "3rd3",
-        "3tsv",
-        "3u4z",
-        "3zq7",
-        "3zy1",
-        "3zye",
-        "4bhc",
-        "4c0m",
-        "4c86",
-        "4f17",
-        "4f26",
-        "4fis",
-        "4hll",
-        "4niq",
-        "4oyc",
-        "4qfq",
-        "4ug3",
-        "4wfw",
-        "4x37",
-        "5a7l",
-        "5arj",
-        "5ewr",
-        "5f6a",
-        "5fd7",
-        "5h79",
-        "5jqz",
-        "5lhx",
-        "5t8l",
-        "5t8n",
-        "5teo",
-        "5tut",
-        "5xbh",
-        "6cyr",
-        "6dz6",
-        "6msi",
-    ]
-
-    for pdb_code in pdb_codes:
-        for input_type in [
-            StructureSetType.S_SET,
-            StructureSetType.D_SET
-        ]:
-            md = RefinementProtocol(
-                pdb_code=pdb_code,
-                input_prefix=Path.cwd() / "data" / "input",
-                output_prefix=Path.cwd() / "data" / "output",
-                input_type=input_type
-            )
-            md.save(md.wd / "state.dill")
+    for pdb_code in ["2msi"]:
+        md = RefinementProtocol(
+            input_pdb_path=Path.cwd() / "data" / "input" / pdb_code / f"{pdb_code}.pdb",
+            input_mtz_path=Path.cwd() / "data" / "input" / pdb_code / f"{pdb_code}.mtz",
+            output_dir=Path.cwd() / "data" / "output" / pdb_code,
+        )
+        md.save(md.wd / "state.dill")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
