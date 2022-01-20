@@ -100,6 +100,10 @@ quit
             with open("tleap.in", "w") as f:
                 f.write(tleap_in)
 
+            with open("parmed.in", "w") as f:
+                f.write("summary\n")
+                f.write("quit\n")
+
             subprocess.check_call(["tleap", "-s", "-f", "tleap.in"])
 
             parmed_output = subprocess.check_output(

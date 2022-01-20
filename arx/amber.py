@@ -1,0 +1,56 @@
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Iterator, Tuple
+
+import gemmi
+
+from arx.prepare import read_pdb
+from arx.utils import chdir
+
+
+def find_ss_bond_pairs(st: gemmi.Structure) -> Iterator[Tuple[int, int]]:
+    cyx_residues = [
+        residue for chain in st[0] for residue in chain if residue.name == "CYX"
+    ]
+
+    for i in range(len(cyx_residues)):
+        ri = cyx_residues[i]
+        sgi = ri["SG"][0]
+        for j in range(i + 1, len(cyx_residues)):
+            rj = cyx_residues[j]
+            sgj = rj["SG"][0]
+            if sgi.pos.dist(sgj.pos) < 2.3:
+                yield ri.seqid.num, rj.seqid.num
+
+
+def get_ss_bond_commands(st: gemmi.Structure) -> str:
+    return "\n".join(f"bond wbox.{i}.SG wbox.{j}.SG" for i, j in find_ss_bond_pairs(st))
+
+
+def create_topology_and_input(
+    st: gemmi.Structure, parm7_path: Path, rst7_path: Path
+) -> gemmi.Structure:
+    bond_commands = get_ss_bond_commands(st)
+    config = f"""
+source oldff/leaprc.ff14SB
+source leaprc.water.tip3p
+
+wbox = loadpdb input.pdb
+
+{bond_commands}
+
+set default nocenter on
+setBox wbox vdw 1.0
+saveamberparm wbox {parm7_path} {rst7_path}
+savepdb wbox wbox.pdb
+quit
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with chdir(tmpdir):
+            with open("tleap.in", "w") as f:
+                f.write(config)
+
+            subprocess.check_call(["tleap", "-s", "-f", "tleap.in"])
+            return read_pdb("wbox.pdb")
