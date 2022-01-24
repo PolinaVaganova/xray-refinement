@@ -28,11 +28,16 @@ class StructurePipeInput:
 
     def do(self, func, *args, **kwargs):
         if self.DEBUG:
-            write_pdb(self.st, f"{self.seq:02d}_{func.__name__}.before.pdb")
+            write_pdb(self.st, self.fmt_debug_path(f"{func.__name__}.before"))
         result: gemmi.Structure = func(self.st, *args, **kwargs)
         if self.DEBUG:
-            write_pdb(result, f"{self.seq:02d}_{func.__name__}.after.pdb")
+            write_pdb(result, self.fmt_debug_path(f"{func.__name__}.after"))
         return StructurePipeInput(result, debug=self.debug, seq=self.seq + 1)
+
+    def fmt_debug_path(self, name: str, ext="pdb") -> Path:
+        debug_dir = Path.cwd() / "debug"
+        debug_dir.mkdir(exist_ok=True)
+        return debug_dir / f"{self.seq:02d}_{name}.{ext}"
 
 
 def main():
