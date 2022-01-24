@@ -77,4 +77,7 @@ quit
                 ]
             )
 
-            return read_pdb("wbox.pdb")
+            result = read_pdb("wbox.pdb")
+    result.spacegroup_hm = st.spacegroup_hm
+    result.cell = st.cell
+    return result
