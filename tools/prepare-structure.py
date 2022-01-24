@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import gemmi
+
 from arx.amber import create_topology_and_input
 from arx.prepare import (
     add_missing_atoms,
@@ -12,16 +14,25 @@ from arx.prepare import (
     read_pdb,
     remove_alternative_conformations,
     remove_ligands_and_water,
+    write_pdb,
 )
 
 
-class PipeInput:
-    def __init__(self, arg):
-        self.arg = arg
+class StructurePipeInput:
+    DEBUG = True
+
+    def __init__(self, st: gemmi.Structure, *, debug=DEBUG, seq=0):
+        self.st: gemmi.Structure = st
+        self.debug = debug
+        self.seq = seq
 
     def do(self, func, *args, **kwargs):
-        print(func.__name__, "...")
-        return PipeInput(func(self.arg, *args, **kwargs))
+        if self.DEBUG:
+            write_pdb(self.st, f"{self.seq:02d}_{func.__name__}.before.pdb")
+        result: gemmi.Structure = func(self.st, *args, **kwargs)
+        if self.DEBUG:
+            write_pdb(result, f"{self.seq:02d}_{func.__name__}.after.pdb")
+        return StructurePipeInput(result, debug=self.debug, seq=self.seq + 1)
 
 
 def main():
@@ -36,7 +47,7 @@ def main():
     rst7_path = (Path().cwd() / "wbox.rst7").absolute()
 
     (
-        PipeInput(input_structure)
+        StructurePipeInput(input_structure)
         .do(remove_ligands_and_water)
         .do(remove_alternative_conformations)
         .do(add_missing_atoms)
