@@ -40,30 +40,39 @@ class StructurePipeInput:
         return debug_dir / f"{self.seq:02d}_{name}.{ext}"
 
 
-def main():
-    input_structure = read_pdb("2msi.pdb")
-    assert len(input_structure) == 1
-
-    spce = read_pdb("spce.pdb")
-    cl = read_pdb("cl.pdb")
-    na = read_pdb("na.pdb")
-
-    parm7_path = (Path().cwd() / "wbox.parm7").absolute()
-    rst7_path = (Path().cwd() / "wbox.rst7").absolute()
-
-    (
-        StructurePipeInput(input_structure)
+def create_parm7_rst7_from(
+    structure: gemmi.Structure,
+    solvent: gemmi.Structure,
+    positive_ion: gemmi.Structure,
+    negative_ion: gemmi.Structure,
+    parm7_path: Path,
+    rst7_path: Path,
+) -> gemmi.Structure:
+    return (
+        StructurePipeInput(structure)
         .do(remove_ligands_and_water)
         .do(remove_alternative_conformations)
         .do(add_missing_atoms)
-        .do(add_missing_b_factors, reference=input_structure)
-        .do(add_missing_occupancies, reference=input_structure)
+        .do(add_missing_b_factors, reference=structure)
+        .do(add_missing_occupancies, reference=structure)
         .do(expand_non_crystallographic_symmetries)
         .do(expand_crystallographic_symmetries)
-        .do(add_water, water=spce)
-        .do(neutralize_with_ions, negative_ion=cl, positive_ion=na)
+        .do(add_water, water=solvent)
+        .do(neutralize_with_ions, negative_ion=negative_ion, positive_ion=positive_ion)
         .do(create_topology_and_input, parm7_path=parm7_path, rst7_path=rst7_path)
+    ).st
+
+
+def main():
+    wbox = create_parm7_rst7_from(
+        structure=read_pdb("2msi.pdb"),
+        positive_ion=read_pdb("na.pdb"),
+        negative_ion=read_pdb("cl.pdb"),
+        solvent=read_pdb("spce.pdb"),
+        parm7_path=(Path().cwd() / "wbox.parm7").absolute(),
+        rst7_path=(Path().cwd() / "wbox.rst7").absolute(),
     )
+    write_pdb(wbox, (Path().cwd() / "wbox.pdb").absolute())
 
 
 if __name__ == "__main__":
