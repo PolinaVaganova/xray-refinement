@@ -163,7 +163,9 @@ def estimate_weight(st: gemmi.Structure) -> float:
 
 
 def expand_non_crystallographic_symmetries(st: gemmi.Structure) -> gemmi.Structure:
-    raise NotImplementedError()
+    result = st.clone()
+    result.expand_ncs(how=gemmi.HowToNameCopiedChain.AddNumber)
+    return result
 
 
 def expand_crystallographic_symmetries(st: gemmi.Structure) -> gemmi.Structure:
