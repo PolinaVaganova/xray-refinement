@@ -54,4 +54,27 @@ quit
             write_pdb(st, "input.pdb")
 
             check_call(["tleap", "-s", "-f", "tleap.in"])
+
+            check_call(
+                [
+                    "ChBox",
+                    "-c",
+                    str(rst7_path),
+                    "-o",
+                    str(rst7_path),
+                    "-X",
+                    str(st.cell.a),
+                    "-Y",
+                    str(st.cell.b),
+                    "-Z",
+                    str(st.cell.c),
+                    "-al",
+                    str(st.cell.alpha),
+                    "-bt",
+                    str(st.cell.beta),
+                    "-gm",
+                    str(st.cell.gamma),
+                ]
+            )
+
             return read_pdb("wbox.pdb")
