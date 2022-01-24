@@ -7,6 +7,8 @@ import gemmi
 from arx.prepare import read_pdb, write_pdb
 from arx.utils import chdir, check_call
 
+from .prepare import add_missing_b_factors
+
 
 def find_ss_bond_pairs(st: gemmi.Structure) -> Iterator[Tuple[int, int]]:
     cyx_residues = [
@@ -80,4 +82,4 @@ quit
             result = read_pdb("wbox.pdb")
     result.spacegroup_hm = st.spacegroup_hm
     result.cell = st.cell
-    return result
+    return add_missing_b_factors(result, reference=st)
