@@ -229,14 +229,23 @@ def add_missing_atoms(st: gemmi.Structure) -> gemmi.Structure:
     return result
 
 
-def set_b_factors_to(st: gemmi.Structure, value: float = 0) -> gemmi.Structure:
+def apply_to_atoms(
+    st: gemmi.Structure, atom_mutator: typing.Callable[[gemmi.Atom], None]
+) -> gemmi.Structure:
     result = st.clone()
     for model in result:
         for chain in model:
             for residue in chain:
                 for atom in residue:
-                    atom.b_iso = value
+                    atom_mutator(atom)
     return result
+
+
+def set_b_factors_to(st: gemmi.Structure, value: float = 0) -> gemmi.Structure:
+    def setter(atom: gemmi.Atom):
+        atom.b_iso = value
+
+    return apply_to_atoms(st, atom_mutator=setter)
 
 
 def add_missing_b_factors(
@@ -282,7 +291,10 @@ def add_missing_b_factors(
 def add_missing_occupancies(
     st: gemmi.Structure, reference: gemmi.Structure
 ) -> gemmi.Structure:
-    raise NotImplementedError()
+    def setter(atom: gemmi.Atom):
+        atom.occ = 1.0
+
+    return apply_to_atoms(st, setter)
 
 
 def remove_alternative_conformations(st: gemmi.Structure) -> gemmi.Structure:
