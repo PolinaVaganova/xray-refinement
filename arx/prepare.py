@@ -5,7 +5,7 @@ import typing
 
 import gemmi
 
-from .utils import chdir
+from .utils import chdir, check_call
 
 AnyPath = typing.Union[str, bytes, os.PathLike]
 
@@ -17,7 +17,7 @@ def add_ions(
         with chdir(tmpdir):
             write_pdb(st, "input.pdb")
             write_pdb(ion, "ion.pdb")
-            subprocess.check_call(
+            check_call(
                 [
                     "AddToBox",
                     "-c",
@@ -45,12 +45,12 @@ def add_ions(
 
 def add_water(st: gemmi.Structure, water: gemmi.Structure) -> gemmi.Structure:
     n_non_water_atoms = st[0].count_atom_sites()
-    count = estimate_water_molecules()
+    count = estimate_water_molecules(st)
     with tempfile.TemporaryDirectory() as tmpdir:
         with chdir(tmpdir):
             write_pdb(st, "input.pdb")
             write_pdb(water, "water.pdb")
-            subprocess.check_call(
+            check_call(
                 [
                     "AddToBox",
                     "-c",
@@ -104,7 +104,7 @@ quit
                 f.write("summary\n")
                 f.write("quit\n")
 
-            subprocess.check_call(["tleap", "-s", "-f", "tleap.in"])
+            check_call(["tleap", "-s", "-f", "tleap.in"])
 
             parmed_output = subprocess.check_output(
                 [
@@ -210,7 +210,7 @@ def add_missing_atoms(st: gemmi.Structure) -> gemmi.Structure:
             input_pdb = "input.pdb"
             result_pdb = "result.pdb"
             write_pdb(st, input_pdb)
-            subprocess.check_call(
+            check_call(
                 [
                     "pdb4amber",
                     "-d",
@@ -222,7 +222,10 @@ def add_missing_atoms(st: gemmi.Structure) -> gemmi.Structure:
                     result_pdb,
                 ]
             )
-            return read_pdb(result_pdb)
+            result = read_pdb(result_pdb)
+    result.cell = st.cell
+    result.spacegroup_hm = st.spacegroup_hm
+    return result
 
 
 def set_b_factors_to(st: gemmi.Structure, value: float = 0) -> gemmi.Structure:
