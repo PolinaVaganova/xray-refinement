@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import gemmi
@@ -17,6 +18,8 @@ from arx.prepare import (
     write_pdb,
 )
 
+logger = logging.getLogger("prepare-structure")
+
 
 class StructurePipeInput:
     DEBUG = True
@@ -27,6 +30,7 @@ class StructurePipeInput:
         self.seq = seq
 
     def do(self, func, *args, **kwargs):
+        logger.info(f"{func.__name__}...")
         if self.DEBUG:
             write_pdb(self.st, self.fmt_debug_path(f"{func.__name__}.before"))
         result: gemmi.Structure = func(self.st, *args, **kwargs)
@@ -64,6 +68,9 @@ def create_parm7_rst7_from(
 
 
 def main():
+    logging.basicConfig()
+    logger.setLevel(logging.INFO)
+
     wbox = create_parm7_rst7_from(
         structure=read_pdb("2msi.pdb"),
         positive_ion=read_pdb("na.pdb"),
