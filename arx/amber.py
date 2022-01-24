@@ -1,12 +1,11 @@
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Iterator, Tuple
 
 import gemmi
 
-from arx.prepare import read_pdb
-from arx.utils import chdir
+from arx.prepare import read_pdb, write_pdb
+from arx.utils import chdir, check_call
 
 
 def find_ss_bond_pairs(st: gemmi.Structure) -> Iterator[Tuple[int, int]]:
@@ -52,5 +51,7 @@ quit
             with open("tleap.in", "w") as f:
                 f.write(config)
 
-            subprocess.check_call(["tleap", "-s", "-f", "tleap.in"])
+            write_pdb(st, "input.pdb")
+
+            check_call(["tleap", "-s", "-f", "tleap.in"])
             return read_pdb("wbox.pdb")
