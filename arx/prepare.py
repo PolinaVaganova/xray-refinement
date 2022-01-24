@@ -186,7 +186,7 @@ def expand_crystallographic_symmetries(st: gemmi.Structure) -> gemmi.Structure:
         for op in g.operations():
             for chain in model:
                 new_model.add_chain(chain, pos=-1)
-                new_chain = model[-1]
+                new_chain = new_model[-1]
                 apply_to_chain(new_chain, op, cell=st.cell)
         result.add_model(new_model, pos=-1)
     result.cell = st.cell
