@@ -301,19 +301,19 @@ def add_missing_occupancies(
 
 def remove_alternative_conformations(st: gemmi.Structure) -> gemmi.Structure:
     result = st.clone()
-    st.remove_alternative_conformations()
+    result.remove_alternative_conformations()
     return result
 
 
 def remove_ligands_and_water(st: gemmi.Structure) -> gemmi.Structure:
     result = st.clone()
-    st.remove_ligands_and_waters()
+    result.remove_ligands_and_waters()
     return result
 
 
 def remove_water(st: gemmi.Structure) -> gemmi.Structure:
     result = st.clone()
-    st.remove_waters()
+    result.remove_waters()
     return result
 
 
