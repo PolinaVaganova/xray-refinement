@@ -94,8 +94,6 @@ class Prepare(Step):
         self.wbox_inpcrd_path = rst7
         self.wbox_pdb = pdb
 
-        self.n_polymer_residues = count_polymer_residues(gemmi.read_pdb(str(pdb)))
-
     @property
     def wbox_xray_prmtop_path(self):
         return self.step_dir / "wbox.xray.parm7"
@@ -148,8 +146,10 @@ go
 
         # Set global attributes
         md.sander.prmtop = str(self.wbox_xray_prmtop_path)
-        md.sander.inpcrd = str(self.wbox_inpcrd_path.relative_to(md.wd))  # FIXME
-        md.sander.refc = str(self.wbox_inpcrd_path.relative_to(md.wd))  # FIXME
+        md.sander.inpcrd = str(self.wbox_inpcrd_path)
+        md.sander.refc = str(self.wbox_inpcrd_path)
+
+        n_polymer_residues = count_polymer_residues(gemmi.read_pdb(str(self.wbox_pdb)))
 
         # Configure minimize
         md.minimize.input.cntrl(
@@ -184,7 +184,7 @@ go
             AmberInput.GroupSelection(
                 title="Keep protein fixed with weak restraints",
                 weight=10.0,
-                residue_id_ranges=[(1, self.n_polymer_residues)],
+                residue_id_ranges=[(1, n_polymer_residues)],
             )
         )
 
@@ -221,7 +221,7 @@ go
             pdb_infile=str(self.wbox_pdb),
             pdb_read_coordinates=False,
             reflection_infile=self.structure_factors_dat,
-            atom_selection_mask=f":1-{self.n_polymer_residues}",
+            atom_selection_mask=f":1-{n_polymer_residues}",
             xray_weight_initial=0.0,
             xray_weight_final=1.0,
             target="ml",
@@ -256,7 +256,7 @@ go
             pdb_infile=str(self.wbox_pdb),
             pdb_read_coordinates=False,
             reflection_infile=self.structure_factors_dat,
-            atom_selection_mask=f":1-{self.n_polymer_residues}",
+            atom_selection_mask=f":1-{n_polymer_residues}",
             xray_weight_initial=1.0,
             xray_weight_final=1.0,
             target="ml",
@@ -321,16 +321,24 @@ def create_tasks(subset: str):
         input_dir = Path.cwd() / "data" / "input" / pdb_code / subset
         output_dir = Path.cwd() / "data" / "output" / pdb_code / subset
 
-        shutil.copy(input_dir / "wbox.pdb", output_dir / "wbox.pdb")
-        shutil.copy(input_dir / f"{pdb_code}.mtz", output_dir / f"{pdb_code}.mtz")
-        shutil.copy(input_dir / "wbox.rst7", output_dir / "wbox.rst7")
-        shutil.copy(input_dir / "wbox.parm7", output_dir / "wbox.parm7")
+        # Copy input files to trajectory folder
+        input_copy = output_dir / "inputs"
+        input_copy.mkdir(exist_ok=True, parents=True)
+        pdb = input_copy / "wbox.pdb"
+        mtz = input_copy / f"{pdb_code}.mtz"
+        rst7 = input_copy / "wbox.rst7"
+        parm7 = input_copy / "wbox.parm7"
+
+        shutil.copy(input_dir / "wbox.pdb", pdb)
+        shutil.copy(input_dir / f"{pdb_code}.mtz", mtz)
+        shutil.copy(input_dir / "wbox.rst7", rst7)
+        shutil.copy(input_dir / "wbox.parm7", parm7)
 
         md = RefinementProtocol(
-            pdb=output_dir / "wbox.pdb",
-            mtz=output_dir / f"{pdb_code}.mtz",
-            rst7=output_dir / "wbox.rst7",
-            parm7=output_dir / "wbox.parm7",
+            pdb=pdb.relative_to(output_dir),
+            mtz=mtz.relative_to(output_dir),
+            rst7=rst7.relative_to(output_dir),
+            parm7=parm7.relative_to(output_dir),
             output_dir=output_dir,
         )
         md.save(md.wd / "state.dill")
