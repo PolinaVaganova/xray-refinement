@@ -27,3 +27,26 @@ pre-commit run --all-files
 ```bash
 ./dev-tools/rebuild-requirements.sh
 ```
+
+
+# Batch processing
+
+
+```bash
+# Copy search results
+python tools/copy-search-results.py
+
+
+# Create Amber coordinate/topology files:
+#   rst7, parm7 and corresponding pdb
+python tools/prepare-structures.py
+
+
+# Create MD protocols
+python init.py
+
+
+# Run MD protocols
+python run_locally.py
+
+```
