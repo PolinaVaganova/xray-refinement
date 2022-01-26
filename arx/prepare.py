@@ -256,10 +256,11 @@ def add_missing_b_factors(
     index: gemmi.NeighborSearch = gemmi.NeighborSearch(reference, 3.0)
     index.populate()
 
-    result = set_b_factors_to(st, 0)
+    result = set_b_factors_to(st, -1)
     total_assigned = 0
+    shell_step = 0.5
     min_distance = 0
-    max_distance = 1.0
+    max_distance = shell_step
     while True:
         n_assigned = 0
         for model in result:
@@ -269,20 +270,19 @@ def add_missing_b_factors(
                         if atom.b_iso > 0:
                             continue
                         closest = index.find_neighbors(atom, min_distance, max_distance)
-                        best_dist = 99
-                        best_ref_at = None
+                        max_b_factor = -1
                         for mark in closest:
                             ref_at = mark.to_cra(reference[0]).atom
                             dist = ref_at.pos.dist(atom.pos)
-                            if dist < best_dist:
-                                best_ref_at = ref_at
-                                best_dist = dist
-                        if best_ref_at is not None:
-                            atom.b_iso = best_ref_at.b_iso
+                            if dist < max_distance:
+                                max_b_factor = max(max_b_factor, ref_at.b_iso)
+                        if max_b_factor > 0:
+                            atom.b_iso = max_b_factor
                             n_assigned += 1
         total_assigned += n_assigned
         min_distance = max_distance
-        max_distance += 1
+        max_distance += shell_step
+        shell_step = 2.0
 
         if n_assigned == 0:
             break
