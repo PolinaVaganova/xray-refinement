@@ -20,7 +20,7 @@ def count_polymer_residues(
     for model in st:
         for chain in model:
             for residue in chain:  # type: gemmi.Residue
-                if residue.name not in non_polymer_residue_names:
+                if residue.name in non_polymer_residue_names:
                     return count
                 else:
                     count += 1
