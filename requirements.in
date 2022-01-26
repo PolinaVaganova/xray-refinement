@@ -1,2 +1,5 @@
 amber-runner
+biopython
 gemmi
+requests
+tqdm

@@ -12,6 +12,12 @@ bcrypt==3.2.0
     # via
     #   -r requirements.txt
     #   paramiko
+biopython==1.79
+    # via -r requirements.txt
+certifi==2021.10.8
+    # via
+    #   -r requirements.txt
+    #   requests
 cffi==1.15.0
     # via
     #   -r requirements.txt
@@ -20,6 +26,10 @@ cffi==1.15.0
     #   pynacl
 cfgv==3.3.1
     # via pre-commit
+charset-normalizer==2.0.10
+    # via
+    #   -r requirements.txt
+    #   requests
 coverage==6.2
     # via -r requirements-dev.in
 cryptography==36.0.1
@@ -44,6 +54,10 @@ gemmi==0.5.1
     # via -r requirements.txt
 identify==2.4.4
     # via pre-commit
+idna==3.3
+    # via
+    #   -r requirements.txt
+    #   requests
 iniconfig==1.1.1
     # via pytest
 isort==5.10.1
@@ -52,6 +66,10 @@ mccabe==0.6.1
     # via flake8
 nodeenv==1.6.0
     # via pre-commit
+numpy==1.22.1
+    # via
+    #   -r requirements.txt
+    #   biopython
 packaging==21.3
     # via pytest
 paramiko==2.9.2
@@ -88,6 +106,8 @@ remote-runner==0.2.0
     # via
     #   -r requirements.txt
     #   amber-runner
+requests==2.27.1
+    # via -r requirements.txt
 six==1.16.0
     # via
     #   -r requirements.txt
@@ -97,5 +117,11 @@ toml==0.10.2
     # via
     #   pre-commit
     #   pytest
+tqdm==4.62.3
+    # via -r requirements.txt
+urllib3==1.26.8
+    # via
+    #   -r requirements.txt
+    #   requests
 virtualenv==20.13.0
     # via pre-commit
