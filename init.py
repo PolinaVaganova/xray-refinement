@@ -295,7 +295,12 @@ class ConvertToPdb(Step):
     def run(self, md: "RefinementProtocol"):
         import tempfile
 
-        from arx.prepare import copy_coordinates, read_pdb, write_pdb
+        from arx.prepare import (
+            copy_coordinates,
+            read_pdb,
+            remove_ligands_and_water,
+            write_pdb,
+        )
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_pdb = Path(tmp_dir) / "tmp.pdb"
@@ -319,6 +324,8 @@ class ConvertToPdb(Step):
         initial = read_pdb(md.prepare.wbox_pdb)
         result = copy_coordinates(initial, reference=final)
         write_pdb(result, self.step_dir / "final.pdb")
+        dry_result = remove_ligands_and_water(result)
+        write_pdb(dry_result, self.step_dir / "final_no_water_no_ligands.pdb")
 
 
 class RefinementProtocol(MdProtocol):
