@@ -291,6 +291,36 @@ go
         self.prepare_files_for_next_stages(md)
 
 
+class ConvertToPdb(Step):
+    def run(self, md: "RefinementProtocol"):
+        import tempfile
+
+        from arx.prepare import copy_coordinates, read_pdb, write_pdb
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_pdb = Path(tmp_dir) / "tmp.pdb"
+            # Don't change directory to avoid problems
+            # with relative paths in md.sander.*
+            with open(tmp_pdb, "wb") as f:
+                check_call(
+                    [
+                        "ambpdb",
+                        # ambpdb doesn't work well with xray-modified prmtop
+                        # use original parm7
+                        "-p",
+                        str(md.prepare.wbox_prmtop),
+                        "-c",
+                        str(md.sander.inpcrd),
+                    ],
+                    stdout=f,
+                )
+            final = read_pdb(tmp_pdb)
+
+        initial = read_pdb(md.prepare.wbox_pdb)
+        result = copy_coordinates(initial, reference=final)
+        write_pdb(result, self.step_dir / "final.pdb")
+
+
 class RefinementProtocol(MdProtocol):
     def __init__(self, pdb: Path, mtz: Path, parm7: Path, rst7: Path, output_dir: Path):
         wd = output_dir
@@ -313,6 +343,7 @@ class RefinementProtocol(MdProtocol):
         self.heating = SingleSanderCall("heating")
         self.evolution = SingleSanderCall("evolution")
         self.cooling = SingleSanderCall("cooling")
+        self.convert_to_pdb = ConvertToPdb("convert_to_pdb")
 
 
 def create_tasks(subset: str):

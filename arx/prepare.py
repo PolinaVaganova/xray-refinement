@@ -323,3 +323,26 @@ def read_pdb(path: AnyPath) -> gemmi.Structure:
 
 def write_pdb(st: gemmi.Structure, path: AnyPath):
     return st.write_pdb(str(path), numbered_ter=False, ter_ignores_type=True)
+
+
+def copy_coordinates(
+    st: gemmi.Structure, reference: gemmi.Structure
+) -> gemmi.Structure:
+    result = st.clone()
+    for (_, _, st_r, st_a), (_, _, ref_r, ref_a) in zip(
+        iterate_over_atoms(result), iterate_over_atoms(reference)
+    ):
+        assert st_r.name == ref_r.name
+        assert st_a.name == ref_a.name
+        st_a.pos = ref_a.pos
+    return result
+
+
+def iterate_over_atoms(
+    st: gemmi.Structure,
+) -> typing.Iterator[typing.Tuple[gemmi.Model, gemmi.Chain, gemmi.Residue, gemmi.Atom]]:
+    for model in st:
+        for chain in model:
+            for residue in chain:
+                for atom in residue:
+                    yield model, chain, residue, atom
