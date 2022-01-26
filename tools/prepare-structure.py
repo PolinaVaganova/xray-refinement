@@ -71,11 +71,13 @@ def main():
     logging.basicConfig()
     logger.setLevel(logging.INFO)
 
+    data = Path.cwd() / "data"
+    sm = data / "small-molecules"
     wbox = create_parm7_rst7_from(
-        structure=read_pdb("2msi.pdb"),
-        positive_ion=read_pdb("na.pdb"),
-        negative_ion=read_pdb("cl.pdb"),
-        solvent=read_pdb("spce.pdb"),
+        structure=read_pdb(data / "input" / "2msi" / "2msi.pdb"),
+        positive_ion=read_pdb(sm / "na.pdb"),
+        negative_ion=read_pdb(sm / "cl.pdb"),
+        solvent=read_pdb(sm / "spce.pdb"),
         parm7_path=(Path().cwd() / "wbox.parm7").absolute(),
         rst7_path=(Path().cwd() / "wbox.rst7").absolute(),
     )
