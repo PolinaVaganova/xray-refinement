@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -33,24 +34,20 @@ def check_call(*args, **kwargs) -> None:
     :param kwargs: Same as in subprocess.Popen
     :return: None
     """
-    if "stderr" not in kwargs:
-        stderr_capture = subprocess.PIPE
-        kwargs["stderr"] = stderr_capture
-    else:
-        stderr_capture = None
 
-    if "stdout" not in kwargs:
-        kwargs["stdout"] = subprocess.DEVNULL
+    with tempfile.TemporaryFile() as tmp_stderr:
+        if "stderr" not in kwargs:
+            stderr_capture = tmp_stderr
+            kwargs["stderr"] = tmp_stderr
+        else:
+            stderr_capture = None
 
-    with subprocess.Popen(*args, **kwargs) as p:
+        if "stdout" not in kwargs:
+            kwargs["stdout"] = subprocess.DEVNULL
+
         try:
-            return_code = p.wait()
-        except:  # noqa: E722
-            p.kill()
+            subprocess.check_call(*args, **kwargs)
+        except (OSError, subprocess.CalledProcessError):
             if stderr_capture:
-                if p.stderr:
-                    sys.stderr.write(p.stderr.read())
-            raise
-    cmd = kwargs.get("args") or args[0]
-    if return_code:
-        raise subprocess.CalledProcessError(return_code, cmd)
+                sys.stderr.write(tmp_stderr.read())
+                raise
