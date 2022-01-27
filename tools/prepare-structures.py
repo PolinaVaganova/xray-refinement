@@ -97,12 +97,22 @@ def process_pdb(data_dir: Path, pdb_code: str, skip_if_exists: bool = True):
     logger.info(f"Complete {pdb_code}!")
 
 
-def get_pdb_codes(data_dir: Path) -> List[str]:
+def get_all_available_pdb_codes(data_dir: Path) -> List[str]:
     return sorted(
         filename.stem[:4].lower()
         for filename in data_dir.glob("????")
         if filename.is_dir()
     )
+
+
+def get_the_84_structures_codes(data_dir: Path) -> List[str]:
+    from arx.dataset import the_84_structures_codes
+
+    return list(the_84_structures_codes)
+
+
+def get_pdb_codes(data_dir: Path) -> List[str]:
+    return get_the_84_structures_codes(data_dir)
 
 
 class PdbCodeProcessor:
