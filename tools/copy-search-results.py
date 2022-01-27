@@ -28,5 +28,5 @@ def main(search_results_dir: Path, output_dir: Path):
 if __name__ == "__main__":
     main(
         search_results_dir=Path("~/bionmr/oleg/amber_xray_test_DB/").expanduser(),
-        output_dir=Path.cwd() / "data" / "p1_input",
+        output_dir=Path.cwd() / "data" / "input",
     )
