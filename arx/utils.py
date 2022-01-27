@@ -5,6 +5,9 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
+MINUTES = 60  # seconds
+DEFAULT_CHECK_CALL_TIMEOUT = 30 * MINUTES
+
 
 @contextmanager
 def chdir(path: Path):
@@ -25,12 +28,12 @@ def chdir(path: Path):
         os.chdir(origin)
 
 
-def check_call(*args, **kwargs) -> None:
+def check_call(cmd, **kwargs) -> None:
     """
     A substitute for subprocess.check_call that suppresses output
     unless an error occurs
 
-    :param args: Same as in subprocess.Popen
+    :param cmd: Same as in subprocess.Popen
     :param kwargs: Same as in subprocess.Popen
     :return: None
     """
@@ -45,8 +48,11 @@ def check_call(*args, **kwargs) -> None:
         if "stdout" not in kwargs:
             kwargs["stdout"] = subprocess.DEVNULL
 
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = DEFAULT_CHECK_CALL_TIMEOUT
+
         try:
-            subprocess.check_call(*args, **kwargs)
+            subprocess.check_call(cmd, **kwargs)
         except (OSError, subprocess.CalledProcessError):
             if stderr_capture:
                 sys.stderr.write(tmp_stderr.read().decode("utf-8"))
