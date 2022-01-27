@@ -49,5 +49,5 @@ def check_call(*args, **kwargs) -> None:
             subprocess.check_call(*args, **kwargs)
         except (OSError, subprocess.CalledProcessError):
             if stderr_capture:
-                sys.stderr.write(tmp_stderr.read())
+                sys.stderr.write(tmp_stderr.read().decode("utf-8"))
                 raise
