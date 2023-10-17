@@ -264,30 +264,40 @@ def add_missing_b_factors(
     shell_step = 0.5
     min_distance = 0
     max_distance = shell_step
+    is_first_pass = True
     while True:
         n_assigned = 0
+        unassigned_exist = False
         for model in result:
             for chain in model:
                 for residue in chain:
                     for atom in residue:
                         if atom.b_iso > 0:
                             continue
+                        unassigned_exist = True
                         closest = index.find_neighbors(atom, min_distance, max_distance)
                         max_b_factor = -1
                         for mark in closest:
-                            ref_at = mark.to_cra(reference[0]).atom
+                            if is_first_pass:
+                                ref_at = mark.to_cra(reference[0]).atom
+                            else:
+                                ref_at = mark.to_cra(model).atom
                             dist = ref_at.pos.dist(atom.pos)
                             if dist < max_distance:
                                 max_b_factor = max(max_b_factor, ref_at.b_iso)
                         if max_b_factor > 0:
                             atom.b_iso = max_b_factor
                             n_assigned += 1
+        if is_first_pass:
+            index: gemmi.NeighborSearch = gemmi.NeighborSearch(result, 3.0)
+            index.populate()
+            is_first_pass = False
         total_assigned += n_assigned
         min_distance = max_distance
         max_distance += shell_step
         shell_step = 2.0
 
-        if n_assigned == 0:
+        if n_assigned == 0 and not unassigned_exist:
             break
 
     return result
