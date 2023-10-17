@@ -349,3 +349,39 @@ def iterate_over_atoms(
             for residue in chain:
                 for atom in residue:
                     yield model, chain, residue, atom
+
+
+def iterate_over_residues(
+    st: gemmi.Structure,
+) -> typing.Iterator[typing.Tuple[gemmi.Model, gemmi.Chain, gemmi.Residue]]:
+    for model in st:
+        for chain in model:
+            for residue in chain:
+                yield model, chain, residue
+
+
+def copy_residue_names(
+    st: gemmi.Structure, reference: gemmi.Structure
+) -> gemmi.Structure:
+    result = st.clone()
+    for (_, _, st_r), (_, _, ref_r) in zip(
+        iterate_over_residues(result), iterate_over_residues(reference)
+    ):
+        if st_r.name != ref_r.name:
+            # very crude check that there was no accidental shift so far
+            assert st_r.name[:2] == ref_r.name[:2]
+            st_r.name = ref_r.name
+    return result
+
+
+def check_chain_and_residue_numbering(st: gemmi.Structure, ref: gemmi.Structure, strict: bool = True) -> bool:
+    result = True
+    for (_, st_c, st_r), (_, ref_c, ref_r) in zip(
+            iterate_over_residues(st), iterate_over_residues(ref)
+    ):
+        if strict:
+            res_names_equal = st_r.name == ref_r.name
+        else:
+            res_names_equal = st_r.name[:2] == ref_r.name[:2]
+        result = result and st_c.name == ref_c.name and st_r.seqid.num == ref_r.seqid.num and res_names_equal
+    return result
