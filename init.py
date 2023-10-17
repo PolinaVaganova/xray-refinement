@@ -417,7 +417,7 @@ def create_tasks(subset: str):
         input_dir = Path.cwd() / "data" / topology_dir / pdb_code
         original_input_dir = Path.cwd() / "data" / "input" / pdb_code
         output_dir = Path.cwd() / "data" / "output" / pdb_code / subset
-        shutil.rmtree(output_dir)
+        # shutil.rmtree(output_dir)
         # Copy input files to trajectory folder
         input_copy = output_dir / "inputs"
         pdb = input_copy / "wbox.pdb"
