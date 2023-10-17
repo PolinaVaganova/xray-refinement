@@ -188,7 +188,7 @@ def get_the_84_structures_codes(data_dir: Path) -> List[str]:
 
 
 def get_pdb_codes(data_dir: Path) -> List[str]:
-    return get_the_84_structures_codes(data_dir)
+    return get_all_available_pdb_codes(data_dir)
 
 
 class PdbCodeProcessor:

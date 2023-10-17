@@ -413,7 +413,7 @@ def create_tasks(subset: str):
             xray_weight = float(xray_weight_t)
         topology_dir += "-sc"
 
-    for pdb_code in ["2msi"]:
+    for pdb_code in ["1wou"]:
         input_dir = Path.cwd() / "data" / topology_dir / pdb_code
         original_input_dir = Path.cwd() / "data" / "input" / pdb_code
         output_dir = Path.cwd() / "data" / "output" / pdb_code / subset
@@ -459,6 +459,7 @@ def create_tasks(subset: str):
     print(f"Structures with missing parm file: {', '.join(bad_tasks_parm)}")
     print(f"Structures with missing pdb file: {', '.join(bad_tasks_pdb)}")
     print(f"Structures with missing mtz file: {', '.join(bad_tasks_mtz)}")
+    print(f"Prepared {len(tasks)} jobs")
 
     return tasks
 
@@ -483,7 +484,7 @@ def run_sequentially_inplace(tasks: List[Task]):
 def main():
     tasks = create_tasks("prepared")
     assert tasks
-    run_sequentially_inplace(tasks)
+    # run_sequentially_inplace(tasks)
 
 
 if __name__ == "__main__":
