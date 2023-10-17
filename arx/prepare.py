@@ -5,6 +5,11 @@ import tempfile
 import typing
 
 import gemmi
+import numpy as np
+from scipy import optimize
+from pathlib import Path
+import parmed
+import sander
 import propka.run
 from pdb4amber.residue import AMBER_SUPPORTED_RESNAMES, RESPROT
 from hybrid_36 import hy36encode
@@ -486,6 +491,51 @@ def prepare_5_terminal_nucleic_acids(st: gemmi.Structure) -> gemmi.Structure:
                 first_res = False
     result.cell = st.cell
     result.spacegroup_hm = st.spacegroup_hm
+    return result
+
+
+def minimize_in_python(st: gemmi.Structure, bellymask: str) -> gemmi.Structure:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with chdir(tmpdir):
+            tmp_pdb = "tmp.pdb"
+
+            result = st.clone()
+            result.cell = st.cell
+            result.spacegroup_hm = st.spacegroup_hm
+
+            from arx.amber import create_topology_and_input
+            create_topology_and_input(st, Path.cwd() / "wbox.prmtop", Path.cwd() / "wbox.inpcrd")
+            prmtop = parmed.load_file(str(Path.cwd() / "wbox.prmtop"), xyz=str(Path.cwd() / "wbox.inpcrd"))
+
+            # sander energy minimization
+            inp = sander.gas_input(6)
+            # inp.ntc = 2
+            # inp.ntf = 2
+            # inp.ntr = 1
+            # inp.restraint_wt = 10
+            # inp.restraintmask = f"!@{bellymask} & !@H="
+            # inp.ibelly = 1
+            # inp.bellymask=f"@{bellymask} | @H="
+
+            def energy_function(var):
+                sander.set_positions(var)
+                ene, frc = sander.energy_forces()
+                return ene.tot, -np.array(frc)
+
+            with sander.setup(str(Path.cwd() / "wbox.prmtop"), prmtop.coordinates, prmtop.box, inp) as sander_context:
+                print(sander_context)
+                # min_method = 'L-BFGS-B'
+                min_method = 'CG'
+                min_result = optimize.minimize(energy_function, prmtop.coordinates, method=min_method, jac=True,
+                                               options=dict(maxiter=50, disp=True, gtol=0.01))
+                sander.set_positions(min_result.x)
+                optimized_coordinates = sander.get_positions(as_numpy=True).reshape((sander_context.natom, 3))
+
+            prmtop.save(tmp_pdb, coordinates=optimized_coordinates, standard_resnames=False)
+
+            coords = read_pdb(tmp_pdb)
+            result = copy_coordinates(result, coords)
+
     return result
 
 
