@@ -144,15 +144,8 @@ def estimate_water_molecules(st: gemmi.Structure) -> int:
 
 def estimate_weight(st: gemmi.Structure) -> float:
     mass = 0.0
-    aname_map = {"Na+": 22.989769, "Cl-": 35.453}
-    element_map = {
-        "P": 30.973762,
-        "H": 1.00794,
-        "C": 12.0107,
-        "S": 32.065,
-        "O": 15.999,
-        "N": 14.0067,
-    }
+    aname_map = dict([(n, gemmi.Element(n).weight) for n in ["Na+", "Cl-"]])
+    element_map = dict([(n, gemmi.Element(n).weight) for n in ["P", "H", "C", "S", "O", "N"]])
     for m in st:
         for c in m:
             for r in c:
