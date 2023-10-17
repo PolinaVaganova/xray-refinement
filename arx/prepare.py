@@ -7,6 +7,7 @@ import typing
 import gemmi
 import propka.run
 from pdb4amber.residue import AMBER_SUPPORTED_RESNAMES
+from hybrid_36 import hy36encode
 
 from .utils import chdir, check_call
 
@@ -601,4 +602,25 @@ def retain_only_standard_resnames(st: gemmi.Structure) -> gemmi.Structure:
     result = st.clone()
     for _, _, residue in iterate_over_residues(result):
         assert residue.name in AMBER_SUPPORTED_RESNAMES
+    return result
+
+
+def renumber_residues(st: gemmi.Structure) -> gemmi.Structure:
+    res_renum = 1
+    chain_renum = 1
+
+    result = gemmi.Structure()
+    for model in st:
+        new_model = gemmi.Model(model.name)
+        for chain in model:
+            new_chain = gemmi.Chain(hy36encode(2, chain_renum))
+            chain_renum += 1
+            for residue in chain:
+                residue.seqid.num = res_renum
+                new_chain.add_residue(residue)
+                res_renum += 1
+            new_model.add_chain(new_chain)
+        result.add_model(new_model)
+    result.cell = st.cell
+    result.spacegroup_hm = st.spacegroup_hm
     return result
