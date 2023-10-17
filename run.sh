@@ -2,8 +2,7 @@
 
 
 source venv/bin/activate
-
-export AMBERHOME="/opt/amber/"
-export PATH="$AMBERHOME/bin:$PATH"
+source /opt/amber/amber.sh
+export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 python run_locally.py

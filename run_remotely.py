@@ -11,8 +11,7 @@ def main():
         LocalSlurmWorker(
             remote_user_rc="""
 unset PYTHONPATH
-source /opt/amber.sh
-source venv/bin/activate
+<see run.sh for an example>
 """,
             sbatch_args=[
                 "--cpus-per-task=1",  # cpu here means threads
