@@ -190,6 +190,51 @@ def expand_crystallographic_symmetries(st: gemmi.Structure) -> gemmi.Structure:
     return result
 
 
+def expand_supercell(st: gemmi.Structure, supercell_size: int) -> gemmi.Structure:
+    if supercell_size < 2:
+        return st
+
+    assert st.spacegroup_hm == 'P1'
+
+    count = 0
+    for model in st:
+        for _ in model:
+            count += 1
+    # check if there is a single model in the structure to be expanded
+    if count > 2:
+        return st
+
+    def apply_to_chain(chain, cell, dim, shift=1):
+        for residue in chain:
+            for atom in residue:
+                fractional = cell.fractionalize(atom.pos)
+                transformed = fractional
+                transformed[dim] += shift
+                cartesian = cell.orthogonalize(transformed)
+                atom.pos = cartesian
+
+    result = gemmi.Structure()
+
+    for model in st:
+        for dim in [0, 1, 2]:
+            new_model = gemmi.Model(model.name)
+            for chain in model:
+                new_model.add_chain(chain, pos=-1)
+            for chain in model:
+                for shift in range(1, supercell_size):
+                    new_model.add_chain(chain, pos=-1)
+                    new_chain = new_model[-1]
+                    apply_to_chain(new_chain, cell=st.cell, dim=dim, shift=shift)
+            model = new_model
+        result.add_model(new_model, pos=-1)
+    result.cell = st.cell
+    result.cell.set(
+        result.cell.a * supercell_size, result.cell.b * supercell_size, result.cell.c * supercell_size,
+        result.cell.alpha, result.cell.beta, result.cell.gamma
+    )
+    return result
+
+
 def neutralize_with_ions(
     st: gemmi.Structure, negative_ion: gemmi.Structure, positive_ion: gemmi.Structure
 ) -> gemmi.Structure:
