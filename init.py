@@ -263,24 +263,26 @@ go
             bulk_solvent_model="afonine-2013",
         )
 
-        for istep1, istep2, value1, value2 in [
-            (0, 500, 293.0, 262.5),
-            (501, 625, 262.5, 262.5),
-            (626, 1125, 262.5, 225.0),
-            (1125, 1250, 225.0, 225.0),
-            (1251, 1750, 225.0, 187.5),
-            (1751, 1875, 187.5, 187.5),
-            (1876, 2375, 187.5, 150.0),
-            (2376, 2500, 150.0, 150.0),
-            (2501, 3000, 150.0, 112.5),
-            (3001, 3125, 112.5, 112.5),
-            (3126, 3625, 112.5, 75.0),
-            (3626, 3750, 75.0, 75.0),
-            (3751, 4250, 75.0, 37.5),
-            (4251, 4375, 37.5, 37.5),
-            (4376, 4875, 37.5, 0.0),
-            (4876, 5000, 0.0, 0.0),
-        ]:
+        cool_steps = []
+        start = 0
+        steps_inc = 500
+        steps_inc_steady = 125
+        temp = 300.0
+        steps = nstlim // (steps_inc + steps_inc_steady)
+        temp_inc = - temp / steps
+
+        for i in range(steps):
+            if i == 0:
+                cool_steps.append((start, start + steps_inc, 298.0, temp + temp_inc))
+                cool_steps.append(
+                    (start + steps_inc + 1, start + steps_inc + steps_inc_steady, temp + temp_inc, temp + temp_inc))
+            else:
+                cool_steps.append((start + 1, start + steps_inc, temp, temp + temp_inc))
+                cool_steps.append(
+                    (start + steps_inc + 1, start + steps_inc + steps_inc_steady, temp + temp_inc, temp + temp_inc))
+            start += (steps_inc + steps_inc_steady)
+            temp += temp_inc
+        for istep1, istep2, value1, value2 in cool_steps:
             md.cooling.input.varying_conditions.add(
                 type="TEMP0", istep1=istep1, istep2=istep2, value1=value1, value2=value2
             )
