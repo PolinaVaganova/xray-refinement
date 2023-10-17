@@ -6,6 +6,7 @@ import typing
 
 import gemmi
 import propka.run
+from pdb4amber.residue import AMBER_SUPPORTED_RESNAMES
 
 from .utils import chdir, check_call
 
@@ -593,4 +594,11 @@ def check_chain_and_residue_numbering(st: gemmi.Structure, ref: gemmi.Structure,
         else:
             res_names_equal = st_r.name[:2] == ref_r.name[:2]
         result = result and st_c.name == ref_c.name and st_r.seqid.num == ref_r.seqid.num and res_names_equal
+    return result
+
+
+def retain_only_standard_resnames(st: gemmi.Structure) -> gemmi.Structure:
+    result = st.clone()
+    for _, _, residue in iterate_over_residues(result):
+        assert residue.name in AMBER_SUPPORTED_RESNAMES
     return result
