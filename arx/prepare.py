@@ -10,9 +10,10 @@ import numpy as np
 import parmed
 import propka.run
 import sander
-from hybrid_36 import hy36encode
 from pdb4amber.residue import AMBER_SUPPORTED_RESNAMES, RESPROT
 from scipy import optimize
+
+from hybrid_36 import hy36encode
 
 from .utils import chdir, check_call
 
