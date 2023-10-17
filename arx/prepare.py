@@ -6,7 +6,7 @@ import typing
 
 import gemmi
 import propka.run
-from pdb4amber.residue import AMBER_SUPPORTED_RESNAMES
+from pdb4amber.residue import AMBER_SUPPORTED_RESNAMES, RESPROT
 from hybrid_36 import hy36encode
 
 from .utils import chdir, check_call
@@ -296,6 +296,68 @@ def neutralize_with_ions(
     count = abs(total_charge)
     n_protein_atoms = st[0].count_atom_sites()
     return add_ions(st, ion, count=count, n_protein_atoms=n_protein_atoms)
+
+
+def find_gaps(st: gemmi.Structure) -> (gemmi.Structure, typing.List[int]):
+    # N.B.: following only finds gaps in protein chains!
+    # H.N: Assume that residue has all 3 atoms: CA, C, and N
+    respro_nocap = set(RESPROT) - {'ACE', 'NME'}
+    result = gemmi.Structure()
+    is_ter = False
+    gaplist = []
+    for model in st:
+        new_model = gemmi.Model(model.name)
+        for chain in model:
+            new_chain = gemmi.Chain(chain.name)
+            # at this point there are no empty chains
+            # N.B. the procedure will fail for free-floating residues!
+            for i in range(len(chain) - 1):
+                residue = chain[i]
+                if residue.name in respro_nocap:
+                    C_atom = residue.find_atom('C', ' ', gemmi.Element('C'))
+                    N_atom = chain[i+1].find_atom('N', ' ', gemmi.Element('N'))
+                    gap = C_atom.pos.dist(N_atom.pos)
+                    if gap > 2.5:
+                        gaplist.append(residue.seqid.num)
+                        print(residue.seqid.num, residue.name, gap)
+                        is_ter = True
+                    else:
+                        is_ter = False
+                new_chain.add_residue(residue)
+                if is_ter:
+                    new_model.add_chain(new_chain)
+                    new_chain = gemmi.Chain(chain.name)
+            new_chain.add_residue(chain[-1])
+            new_model.add_chain(new_chain)
+        result.add_model(new_model)
+    result.cell = st.cell
+    result.spacegroup_hm = st.spacegroup_hm
+    return result, gaplist
+
+
+def apply_additional_ters(st: gemmi.Structure, gaplist: typing.List[int]) -> gemmi.Structure:
+    result = gemmi.Structure()
+    for model in st:
+        new_model = gemmi.Model(model.name)
+        for chain in model:
+            new_chain = gemmi.Chain(chain.name)
+            for i in range(len(chain) - 1):
+                residue = chain[i]
+                if residue.seqid.num in gaplist:
+                    is_ter = True
+                else:
+                    is_ter = False
+                new_chain.add_residue(residue)
+                if is_ter:
+                    print(residue.seqid.num)
+                    new_model.add_chain(new_chain)
+                    new_chain = gemmi.Chain(chain.name)
+            new_chain.add_residue(chain[-1])
+            new_model.add_chain(new_chain)
+        result.add_model(new_model)
+    result.cell = st.cell
+    result.spacegroup_hm = st.spacegroup_hm
+    return result
 
 
 def extract_pkas(protein, conformation, parameters, target_ph):
