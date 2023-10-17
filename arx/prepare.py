@@ -382,20 +382,13 @@ def add_missing_atoms(st: gemmi.Structure) -> gemmi.Structure:
     with tempfile.TemporaryDirectory() as tmpdir:
         with chdir(tmpdir):
             input_pdb = "input.pdb"
-            result_pdb = "result.pdb"
-            write_pdb(st, input_pdb)
-            check_call(
-                [
-                    "pdb4amber",
-                    "-d",
-                    "--reduce",
-                    "--add-missing-atoms",
-                    "-i",
-                    input_pdb,
-                    "-o",
-                    result_pdb,
-                ]
-            )
+            result_pdb = "wbox.dry.pdb"
+            result = st.clone()
+            result.remove_hydrogens()
+            write_pdb(result, input_pdb)
+            with open("tleap.in", "w") as f:
+                f.write(tleap_in)
+            check_call(["tleap", "-f", "tleap.in"])
             result = read_pdb(result_pdb)
     result.cell = st.cell
     result.spacegroup_hm = st.spacegroup_hm
