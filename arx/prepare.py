@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import tempfile
 import typing
@@ -232,6 +233,52 @@ def expand_supercell(st: gemmi.Structure, supercell_size: int) -> gemmi.Structur
         result.cell.a * supercell_size, result.cell.b * supercell_size, result.cell.c * supercell_size,
         result.cell.alpha, result.cell.beta, result.cell.gamma
     )
+    return result
+
+
+def get_target_ph(st: gemmi.Structure) -> float:
+    def extract200(line):
+        print(line)
+        m = re.findall(r'\d*\.\d+|\d+', line.split(':')[-1].upper().strip())
+        m = [float(m_) for m_ in m]
+        letter_presence = len(re.findall(r'[a-zA-z]', line.split(':')[-1].upper().strip())) > 0 and len(m) > 0
+        if len(m) == 1 or letter_presence:
+            return m[0]
+        elif len(m) > 1:
+            return sum(m) / len(m)
+        return None
+
+    def extract280(line):
+        print(line)
+        m = re.findall(r'PH (?:\d*\.\d+|\d+)', line.upper().strip())
+        m = [float(m_[2:]) for m_ in m]
+        if len(m) > 0:
+            return sum(m) / len(m)
+        return None
+
+    header = st.make_pdb_headers().splitlines()
+    # print(header)
+    ph = None
+    for header_line in header:
+        if 'REMARK 200  PH ' in header_line.upper():
+            ph = extract200(header_line.strip())
+            if ph is not None:
+                break
+    if ph is None:
+        l_accumulate = ''
+        accumulate = False
+        for header_line in header:
+            if 'REMARK 280 CRYSTALLIZATION' in header_line.upper():
+                accumulate = True
+            if accumulate:
+                l_accumulate += header_line.upper()[11:-1]
+                if '280' not in header_line:
+                    accumulate = False
+        ph = extract280(l_accumulate.strip())
+    if ph is not None:
+        result = ph
+    else:
+        result = 7.5
     return result
 
 
