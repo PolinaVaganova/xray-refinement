@@ -30,11 +30,12 @@ def count_polymer_residues(
 class Prepare(Step):
     @classmethod
     def write_sf_dat_file(
-        cls, mtz: "gemmi.Mtz", output_filename: Union[os.PathLike, str]
+        cls, mtz: "gemmi.Mtz", output_filename: Union[os.PathLike, str], cell_size: int
     ):
         """Write .tab file for pmemd.arx
         :param mtz: mtz file with P1 symmetry
         :param output_filename: output .dat filename
+        :param cell_size: size of supercell
         """
         import re
 
@@ -74,7 +75,7 @@ class Prepare(Step):
             ):
                 r = r_flag if flag_is_one else 1 - r_flag
                 output.write(
-                    f"{h:3.0f} {k:3.0f} {l:3.0f} {fobs:15.8e} {sigma:15.8e} {r:1.0f}\n"
+                    f"{h*cell_size:3.0f} {k*cell_size:3.0f} {l*cell_size:3.0f} {fobs:15.8e} {sigma:15.8e} {r:1.0f}\n"
                 )
 
     def __init__(
@@ -84,6 +85,8 @@ class Prepare(Step):
         rst7: Path,
         pdb: Path,
         mtz: Path,
+        xray_weight_target: float,
+        cell_size: int,
     ):
         Step.__init__(self, name)
 
@@ -93,6 +96,8 @@ class Prepare(Step):
         self.wbox_prmtop = parm7
         self.wbox_inpcrd_path = rst7
         self.wbox_pdb = pdb
+        self.xray_weight_target = xray_weight_target
+        self.cell_size = cell_size
 
     @property
     def wbox_xray_prmtop_path(self):
@@ -106,7 +111,7 @@ class Prepare(Step):
         import gemmi
 
         mtz = gemmi.read_mtz_file(str(self.input_mtz_path))
-        self.write_sf_dat_file(mtz=mtz, output_filename=self.structure_factors_dat)
+        self.write_sf_dat_file(mtz=mtz, output_filename=self.structure_factors_dat, cell_size=self.cell_size)
 
     def prepare_xray_prmtop(self):
         tmp_parm = self.step_dir / "tmp.parm7"
@@ -224,7 +229,7 @@ go
             reflection_infile=self.structure_factors_dat,
             atom_selection_mask=f":1-{n_polymer_residues}",
             xray_weight_initial=0.0,
-            xray_weight_final=1.0,
+            xray_weight_final=self.xray_weight_target,
             target="ml",
             bulk_solvent_model="afonine-2013",
         )
@@ -258,8 +263,8 @@ go
             pdb_read_coordinates=False,
             reflection_infile=self.structure_factors_dat,
             atom_selection_mask=f":1-{n_polymer_residues}",
-            xray_weight_initial=1.0,
-            xray_weight_final=1.0,
+            xray_weight_initial=self.xray_weight_target,
+            xray_weight_final=self.xray_weight_target,
             target="ml",
             bulk_solvent_model="afonine-2013",
         )
@@ -332,10 +337,10 @@ class ConvertToPdb(Step):
 
 
 class RefinementProtocol(MdProtocol):
-    def __init__(self, pdb: Path, mtz: Path, parm7: Path, rst7: Path, output_dir: Path):
+    def __init__(self, pdb: Path, mtz: Path, parm7: Path, rst7: Path, output_dir: Path, xray_weight_target: float, cell_size: int):
         wd = output_dir
         wd.mkdir(mode=0o755, exist_ok=True, parents=True)
-        MdProtocol.__init__(self, name="B0", wd=wd)
+        MdProtocol.__init__(self, name=str(wd).split("/")[-2] + '_amb', wd=wd)
 
         self.sander = PmemdCommand()
         self.sander.executable = ["pmemd.cuda"]
@@ -347,6 +352,8 @@ class RefinementProtocol(MdProtocol):
             mtz=mtz,
             parm7=parm7,
             rst7=rst7,
+            xray_weight_target=xray_weight_target,
+            cell_size=cell_size,
         )
 
         self.minimize = SingleSanderCall("minimize")
@@ -358,32 +365,66 @@ class RefinementProtocol(MdProtocol):
 
 def create_tasks(subset: str):
     tasks = []
-    for pdb_code in ["2msi"]:
-        input_dir = Path.cwd() / "data" / "input" / pdb_code / subset
-        output_dir = Path.cwd() / "data" / "output" / pdb_code / subset
+    # collect structures with missing files
+    bad_tasks_parm = []
+    bad_tasks_pdb = []
+    bad_tasks_mtz = []
 
+    cell_size = 1
+    xray_weight = 1.0
+    topology_dir = "amber-topology"
+    # extract supercell wieght based on 'subset' name
+    if ".sc" in subset:
+        cell_size = 2
+        xray_weight_t = subset.split(".sc")[1]
+        if xray_weight_t != "":
+            xray_weight = float(xray_weight_t)
+        topology_dir += "-sc"
+
+    for pdb_code in ["2msi"]:
+        input_dir = Path.cwd() / "data" / topology_dir / pdb_code
+        original_input_dir = Path.cwd() / "data" / "input" / pdb_code
+        output_dir = Path.cwd() / "data" / "output" / pdb_code / subset
+        shutil.rmtree(output_dir)
         # Copy input files to trajectory folder
         input_copy = output_dir / "inputs"
-        input_copy.mkdir(exist_ok=True, parents=True)
         pdb = input_copy / "wbox.pdb"
         mtz = input_copy / f"{pdb_code}.mtz"
         rst7 = input_copy / "wbox.rst7"
         parm7 = input_copy / "wbox.parm7"
 
-        shutil.copy(input_dir / "wbox.pdb", pdb)
-        shutil.copy(input_dir / f"{pdb_code}.mtz", mtz)
-        shutil.copy(input_dir / "wbox.rst7", rst7)
-        shutil.copy(input_dir / "wbox.parm7", parm7)
+        # skip execution if ferined structure already exists
+        if (output_dir / "5_convert_to_pdb" / "final.pdb").exists():
+            continue
 
-        md = RefinementProtocol(
-            pdb=pdb.relative_to(output_dir),
-            mtz=mtz.relative_to(output_dir),
-            rst7=rst7.relative_to(output_dir),
-            parm7=parm7.relative_to(output_dir),
-            output_dir=output_dir,
-        )
-        md.save(md.wd / "state.dill")
-        tasks.append(md)
+        if not (input_dir / "wbox.rst7").exists() or not (input_dir / "wbox.parm7").exists():
+            bad_tasks_parm.append(pdb_code)
+        elif not (input_dir / "wbox.pdb").exists():
+            bad_tasks_pdb.append(pdb_code)
+        elif not (original_input_dir / f"{pdb_code}.mtz").exists():
+            bad_tasks_mtz.append(pdb_code)
+        else:
+            input_copy.mkdir(exist_ok=True, parents=True)
+            shutil.copy(input_dir / "wbox.pdb", pdb)
+            shutil.copy(original_input_dir / f"{pdb_code}.mtz", mtz)
+            shutil.copy(input_dir / "wbox.rst7", rst7)
+            shutil.copy(input_dir / "wbox.parm7", parm7)
+
+            md = RefinementProtocol(
+                pdb=pdb.relative_to(output_dir),
+                mtz=mtz.relative_to(output_dir),
+                rst7=rst7.relative_to(output_dir),
+                parm7=parm7.relative_to(output_dir),
+                output_dir=output_dir,
+                xray_weight_target=xray_weight,
+                cell_size=cell_size,
+            )
+            md.save(md.wd / "state.dill")
+            tasks.append(md)
+    print(f"Structures with missing parm file: {', '.join(bad_tasks_parm)}")
+    print(f"Structures with missing pdb file: {', '.join(bad_tasks_pdb)}")
+    print(f"Structures with missing mtz file: {', '.join(bad_tasks_mtz)}")
+
     return tasks
 
 
