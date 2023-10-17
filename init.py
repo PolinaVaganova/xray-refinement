@@ -189,6 +189,7 @@ go
         )
 
         # Configure evolution
+        nstlim = 5000
         md.evolution.input.cntrl(
             imin=0,
             irest=1,
@@ -207,7 +208,7 @@ go
             ntr=0,
             ntc=2,
             ntf=2,
-            nstlim=5000,
+            nstlim=nstlim,
             nscm=100,
             dt=0.002,
             ntpr=100,
@@ -234,7 +235,7 @@ go
             ntx=5,
             irest=1,
             iwrap=1,
-            nstlim=5000,
+            nstlim=nstlim,
             dt=0.002,
             ntf=2,
             ntc=2,
