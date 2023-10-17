@@ -67,6 +67,7 @@ class Prepare(Step):
         # currently it's not used anyway
         if not SIGMA_FOBS:
             import numpy as np
+
             SIGMA_FOBS = np.ones(len(FOBS))
 
         n_positive_r_flags = sum(R_FREE_FLAG)
@@ -80,7 +81,8 @@ class Prepare(Step):
             ):
                 r = r_flag if flag_is_one else 1 - r_flag
                 output.write(
-                    f"{h*cell_size:3.0f} {k*cell_size:3.0f} {l*cell_size:3.0f} {fobs:15.8e} {sigma:15.8e} {r:1.0f}\n"
+                    f"{h*cell_size:3.0f} {k*cell_size:3.0f} {l*cell_size:3.0f} "
+                    f"{fobs:15.8e} {sigma:15.8e} {r:1.0f}\n"
                 )
 
     def __init__(
@@ -116,7 +118,11 @@ class Prepare(Step):
         import gemmi
 
         mtz = gemmi.read_mtz_file(str(self.input_mtz_path))
-        self.write_sf_dat_file(mtz=mtz, output_filename=self.structure_factors_dat, cell_size=self.cell_size)
+        self.write_sf_dat_file(
+            mtz=mtz,
+            output_filename=self.structure_factors_dat,
+            cell_size=self.cell_size,
+        )
 
     def prepare_xray_prmtop(self):
         tmp_parm = self.step_dir / "tmp.parm7"
@@ -280,18 +286,30 @@ go
         steps_inc_steady = 125
         temp = 300.0
         steps = nstlim // (steps_inc + steps_inc_steady)
-        temp_inc = - temp / steps
+        temp_inc = -temp / steps
 
         for i in range(steps):
             if i == 0:
                 cool_steps.append((start, start + steps_inc, 298.0, temp + temp_inc))
                 cool_steps.append(
-                    (start + steps_inc + 1, start + steps_inc + steps_inc_steady, temp + temp_inc, temp + temp_inc))
+                    (
+                        start + steps_inc + 1,
+                        start + steps_inc + steps_inc_steady,
+                        temp + temp_inc,
+                        temp + temp_inc,
+                    )
+                )
             else:
                 cool_steps.append((start + 1, start + steps_inc, temp, temp + temp_inc))
                 cool_steps.append(
-                    (start + steps_inc + 1, start + steps_inc + steps_inc_steady, temp + temp_inc, temp + temp_inc))
-            start += (steps_inc + steps_inc_steady)
+                    (
+                        start + steps_inc + 1,
+                        start + steps_inc + steps_inc_steady,
+                        temp + temp_inc,
+                        temp + temp_inc,
+                    )
+                )
+            start += steps_inc + steps_inc_steady
             temp += temp_inc
         for istep1, istep2, value1, value2 in cool_steps:
             md.cooling.input.varying_conditions.add(
@@ -342,10 +360,19 @@ class ConvertToPdb(Step):
 
 
 class RefinementProtocol(MdProtocol):
-    def __init__(self, pdb: Path, mtz: Path, parm7: Path, rst7: Path, output_dir: Path, xray_weight_target: float, cell_size: int):
+    def __init__(
+        self,
+        pdb: Path,
+        mtz: Path,
+        parm7: Path,
+        rst7: Path,
+        output_dir: Path,
+        xray_weight_target: float,
+        cell_size: int,
+    ):
         wd = output_dir
         wd.mkdir(mode=0o755, exist_ok=True, parents=True)
-        MdProtocol.__init__(self, name=str(wd).split("/")[-2] + '_amb', wd=wd)
+        MdProtocol.__init__(self, name=str(wd).split("/")[-2] + "_amb", wd=wd)
 
         self.sander = PmemdCommand()
         self.sander.executable = ["pmemd.cuda"]
@@ -402,7 +429,10 @@ def create_tasks(subset: str):
         if (output_dir / "5_convert_to_pdb" / "final.pdb").exists():
             continue
 
-        if not (input_dir / "wbox.rst7").exists() or not (input_dir / "wbox.parm7").exists():
+        if (
+            not (input_dir / "wbox.rst7").exists()
+            or not (input_dir / "wbox.parm7").exists()
+        ):
             bad_tasks_parm.append(pdb_code)
         elif not (input_dir / "wbox.pdb").exists():
             bad_tasks_pdb.append(pdb_code)

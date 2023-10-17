@@ -449,7 +449,9 @@ class ProcessPDB:
             else:
                 pdb = gemmi.read_pdb(f"db/pdb{code.lower()}.ent")
             if (
-                pdb.cell.a > min_side_length and pdb.cell.b > min_side_length and pdb.cell.c > min_side_length
+                pdb.cell.a > min_side_length
+                and pdb.cell.b > min_side_length
+                and pdb.cell.c > min_side_length
             ):  # adjust these values
                 volumes[code] = pdb.cell.volume
         sorted_by_value = sorted(volumes.items(), key=lambda kv: kv[1])
@@ -542,11 +544,13 @@ class ProcessPDB:
                 continue
             filename_base = f"structure_factors/{code}-sf"
             if not isfile(f"{filename_base}.mtz"):
-                command_cis_as_mtz = f"phenix.cif_as_mtz {filename_base}.cif --ignore_bad_sigmas --merge " \
-                                     f"--output_file_name={filename_base}.mtz"
-                if code == '1xnh':
-                    command_cis_as_mtz += ' --incompatible_flags_to_work_set'
-                if code == '2no2':
+                command_cis_as_mtz = (
+                    f"phenix.cif_as_mtz {filename_base}.cif --ignore_bad_sigmas --merge "
+                    f"--output_file_name={filename_base}.mtz"
+                )
+                if code == "1xnh":
+                    command_cis_as_mtz += " --incompatible_flags_to_work_set"
+                if code == "2no2":
                     command_cis_as_mtz += ' --symmetry "P 42 21 2"'
 
                 s = subprocess.run(

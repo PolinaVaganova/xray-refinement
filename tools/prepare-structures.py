@@ -5,11 +5,6 @@ from typing import List
 
 import gemmi
 
-# when running this preparation function (process_pdb) on remote runners,
-# it is useful to add the current direcotory into PATH with the two lines:
-# import sys
-# sys.path.insert(1, str(Path.cwd()))
-
 from arx.amber import create_topology_and_input
 from arx.prepare import (
     add_missing_atoms,
@@ -25,13 +20,19 @@ from arx.prepare import (
     neutralize_with_ions,
     read_pdb,
     remove_alternative_conformations,
-    remove_ligands_and_water,
     remove_empty_chains,
     remove_hydrogens,
+    remove_ligands_and_water,
     renumber_residues,
     retain_only_standard_resnames,
     write_pdb,
 )
+
+# when running this preparation function (process_pdb) on remote runners,
+# it is useful to add the current directory into PATH with the two lines:
+# import sys
+# sys.path.insert(1, str(Path.cwd()))
+
 
 logger = logging.getLogger("prepare-structure")
 
@@ -69,47 +70,65 @@ def create_parm7_rst7_from(
     target_ph = get_target_ph(structure)
     logger.info(f"pH is {target_ph}")
 
-    reference = StructurePipeInput(structure, debug_dir=debug_dir / "reference")\
-        .do(remove_ligands_and_water)\
-        .do(remove_alternative_conformations)\
-        .do(remove_empty_chains)\
-        .do(retain_only_standard_resnames)\
-        .do(expand_non_crystallographic_symmetries)\
-        .do(expand_crystallographic_symmetries)\
-        .do(expand_supercell, supercell_size=supercell_size)\
+    reference = (
+        StructurePipeInput(structure, debug_dir=debug_dir / "reference")
+        .do(remove_ligands_and_water)
+        .do(remove_alternative_conformations)
+        .do(remove_empty_chains)
+        .do(retain_only_standard_resnames)
+        .do(expand_non_crystallographic_symmetries)
+        .do(expand_crystallographic_symmetries)
+        .do(expand_supercell, supercell_size=supercell_size)
         .do(renumber_residues)
+    )
     # For further developement:
-    # To handle nucleic acids one would .do(prepare_5_terminal_nucleic_acids) as the last step 
+    # To handle nucleic acids as the last step one would
+    # .do(prepare_5_terminal_nucleic_acids)
     reference_st = reference.st.clone()
 
-    reference_protonation = StructurePipeInput(reference_st, debug_dir=debug_dir / "protonation_naming")\
-        .do(add_missing_atoms)\
-        .do(renumber_residues)\
-        .do(remove_hydrogens, reference=reference_st)\
+    reference_protonation = (
+        StructurePipeInput(reference_st, debug_dir=debug_dir / "protonation_naming")
+        .do(add_missing_atoms)
+        .do(renumber_residues)
+        .do(remove_hydrogens, reference=reference_st)
         .do(assign_protonation_states, target_ph=target_ph)
+    )
     reference_protonation_st = reference_protonation.st.clone()
 
     # This is a prototype of the code to handle gaps in chains
     # One would need to additionally import from arx.prepare:
-    # find_gaps, apply_additional_ters, 
+    # find_gaps, apply_additional_ters,
     # check_chain_and_residue_numbering
     #
-    # reference_protonation_st, additional_ter_residues = find_gaps(reference_protonation.st)
-    #
-    # if len(additional_ter_residues) > 0:
-    #     logger.info(f"Gaps have been detected at residues: {', '.join([str(t) for t in additional_ter_residues])}")
-    #     reference_st = renumber_residues(apply_additional_ters(reference_st, additional_ter_residues))
+    # reference_protonation_st, additional_ter_residues = find_gaps(
+    #     reference_protonation.st
+    # )
+
+    additional_ter_residues = []
+    if len(additional_ter_residues) > 0:
+        logger.info(
+            f"Gaps have been detected at residues: "
+            f"{', '.join([str(t) for t in additional_ter_residues])}"
+        )
+    #     reference_st = renumber_residues(
+    #         apply_additional_ters(reference_st, additional_ter_residues)
+    #     )
     #     reference_protonation_st = renumber_residues(reference_protonation_st)
-    #     assert check_chain_and_residue_numbering(reference_protonation_st, reference_st, strict=False)
+    #     assert check_chain_and_residue_numbering(
+    #         reference_protonation_st, reference_st, strict=False
+    #     )
     # else:
-    #     assert check_chain_and_residue_numbering(reference_protonation_st, reference_protonation.st)
+    #     assert check_chain_and_residue_numbering(
+    #         reference_protonation_st, reference_protonation.st
+    #     )
 
     # it _might_ be useful to run minimize_in_python before neutralizing with ions
     return (
         StructurePipeInput(reference_st, debug_dir=debug_dir)
         .do(copy_residue_names, reference=reference_protonation_st)
         .do(add_missing_atoms)
-        .do(renumber_residues)  # needed match the reference after tleap, just in case
+        # needed match the reference after tleap, just in case
+        .do(renumber_residues)
         .do(add_missing_b_factors, reference=reference_st)
         .do(add_missing_occupancies, reference=reference_st)
         .do(neutralize_with_ions, negative_ion=negative_ion, positive_ion=positive_ion)
@@ -118,7 +137,9 @@ def create_parm7_rst7_from(
     ).st
 
 
-def process_pdb(data_dir: Path, pdb_code: str, skip_if_exists: bool = True, supercell_size: int = 1):
+def process_pdb(
+    data_dir: Path, pdb_code: str, skip_if_exists: bool = True, supercell_size: int = 1
+):
     sm = data_dir / "small-molecules"
     if supercell_size > 1:
         out_dir = data_dir / "amber-topology-sc" / pdb_code
@@ -146,7 +167,7 @@ def process_pdb(data_dir: Path, pdb_code: str, skip_if_exists: bool = True, supe
         parm7_path=parm7_path,
         rst7_path=rst7_path,
         debug_dir=out_dir / "debug",
-        supercell_size=supercell_size
+        supercell_size=supercell_size,
     )
     write_pdb(wbox, wbox_path)
     logger.info(f"Complete {pdb_code}!")

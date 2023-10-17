@@ -3,16 +3,16 @@ import re
 import subprocess
 import tempfile
 import typing
+from pathlib import Path
 
 import gemmi
 import numpy as np
-from scipy import optimize
-from pathlib import Path
 import parmed
-import sander
 import propka.run
-from pdb4amber.residue import AMBER_SUPPORTED_RESNAMES, RESPROT
+import sander
 from hybrid_36 import hy36encode
+from pdb4amber.residue import AMBER_SUPPORTED_RESNAMES, RESPROT
+from scipy import optimize
 
 from .utils import chdir, check_call
 
@@ -154,7 +154,9 @@ def estimate_water_molecules(st: gemmi.Structure) -> int:
 def estimate_weight(st: gemmi.Structure) -> float:
     mass = 0.0
     aname_map = dict([(n, gemmi.Element(n).weight) for n in ["Na+", "Cl-"]])
-    element_map = dict([(n, gemmi.Element(n).weight) for n in ["P", "H", "C", "S", "O", "N"]])
+    element_map = dict(
+        [(n, gemmi.Element(n).weight) for n in ["P", "H", "C", "S", "O", "N"]]
+    )
     for m in st:
         for c in m:
             for r in c:
@@ -195,7 +197,7 @@ def expand_crystallographic_symmetries(st: gemmi.Structure) -> gemmi.Structure:
                 apply_to_chain(new_chain, op, cell=st.cell)
         result.add_model(new_model, pos=-1)
     result.cell = st.cell
-    result.spacegroup_hm = 'P1'  # st.spacegroup_hm
+    result.spacegroup_hm = "P1"  # st.spacegroup_hm
     return result
 
 
@@ -203,7 +205,7 @@ def expand_supercell(st: gemmi.Structure, supercell_size: int) -> gemmi.Structur
     if supercell_size < 2:
         return st
 
-    assert st.spacegroup_hm == 'P1'
+    assert st.spacegroup_hm == "P1"
 
     count = 0
     for model in st:
@@ -238,8 +240,12 @@ def expand_supercell(st: gemmi.Structure, supercell_size: int) -> gemmi.Structur
         result.add_model(new_model, pos=-1)
     result.cell = st.cell
     result.cell.set(
-        result.cell.a * supercell_size, result.cell.b * supercell_size, result.cell.c * supercell_size,
-        result.cell.alpha, result.cell.beta, result.cell.gamma
+        result.cell.a * supercell_size,
+        result.cell.b * supercell_size,
+        result.cell.c * supercell_size,
+        result.cell.alpha,
+        result.cell.beta,
+        result.cell.gamma,
     )
     return result
 
@@ -247,9 +253,12 @@ def expand_supercell(st: gemmi.Structure, supercell_size: int) -> gemmi.Structur
 def get_target_ph(st: gemmi.Structure) -> float:
     def extract200(line):
         print(line)
-        m = re.findall(r'\d*\.\d+|\d+', line.split(':')[-1].upper().strip())
+        m = re.findall(r"\d*\.\d+|\d+", line.split(":")[-1].upper().strip())
         m = [float(m_) for m_ in m]
-        letter_presence = len(re.findall(r'[a-zA-z]', line.split(':')[-1].upper().strip())) > 0 and len(m) > 0
+        letter_presence = (
+            len(re.findall(r"[a-zA-z]", line.split(":")[-1].upper().strip())) > 0
+            and len(m) > 0
+        )
         if len(m) == 1 or letter_presence:
             return m[0]
         elif len(m) > 1:
@@ -258,7 +267,7 @@ def get_target_ph(st: gemmi.Structure) -> float:
 
     def extract280(line):
         print(line)
-        m = re.findall(r'PH (?:\d*\.\d+|\d+)', line.upper().strip())
+        m = re.findall(r"PH (?:\d*\.\d+|\d+)", line.upper().strip())
         m = [float(m_[2:]) for m_ in m]
         if len(m) > 0:
             return sum(m) / len(m)
@@ -268,19 +277,19 @@ def get_target_ph(st: gemmi.Structure) -> float:
     # print(header)
     ph = None
     for header_line in header:
-        if 'REMARK 200  PH ' in header_line.upper():
+        if "REMARK 200  PH " in header_line.upper():
             ph = extract200(header_line.strip())
             if ph is not None:
                 break
     if ph is None:
-        l_accumulate = ''
+        l_accumulate = ""
         accumulate = False
         for header_line in header:
-            if 'REMARK 280 CRYSTALLIZATION' in header_line.upper():
+            if "REMARK 280 CRYSTALLIZATION" in header_line.upper():
                 accumulate = True
             if accumulate:
                 l_accumulate += header_line.upper()[11:-1]
-                if '280' not in header_line:
+                if "280" not in header_line:
                     accumulate = False
         ph = extract280(l_accumulate.strip())
     if ph is not None:
@@ -306,7 +315,7 @@ def neutralize_with_ions(
 def find_gaps(st: gemmi.Structure) -> (gemmi.Structure, typing.List[int]):
     # N.B.: following only finds gaps in protein chains!
     # H.N: Assume that residue has all 3 atoms: CA, C, and N
-    respro_nocap = set(RESPROT) - {'ACE', 'NME'}
+    respro_nocap = set(RESPROT) - {"ACE", "NME"}
     result = gemmi.Structure()
     is_ter = False
     gaplist = []
@@ -319,8 +328,8 @@ def find_gaps(st: gemmi.Structure) -> (gemmi.Structure, typing.List[int]):
             for i in range(len(chain) - 1):
                 residue = chain[i]
                 if residue.name in respro_nocap:
-                    C_atom = residue.find_atom('C', ' ', gemmi.Element('C'))
-                    N_atom = chain[i+1].find_atom('N', ' ', gemmi.Element('N'))
+                    C_atom = residue.find_atom("C", " ", gemmi.Element("C"))
+                    N_atom = chain[i + 1].find_atom("N", " ", gemmi.Element("N"))
                     gap = C_atom.pos.dist(N_atom.pos)
                     if gap > 2.5:
                         gaplist.append(residue.seqid.num)
@@ -340,7 +349,9 @@ def find_gaps(st: gemmi.Structure) -> (gemmi.Structure, typing.List[int]):
     return result, gaplist
 
 
-def apply_additional_ters(st: gemmi.Structure, gaplist: typing.List[int]) -> gemmi.Structure:
+def apply_additional_ters(
+    st: gemmi.Structure, gaplist: typing.List[int]
+) -> gemmi.Structure:
     result = gemmi.Structure()
     for model in st:
         new_model = gemmi.Model(model.name)
@@ -366,10 +377,10 @@ def apply_additional_ters(st: gemmi.Structure, gaplist: typing.List[int]) -> gem
 
 
 def extract_pkas(protein, conformation, parameters, target_ph):
-    rename_residues = ['GLU', 'ASP', 'HIS', 'CYS', 'LYS']
+    rename_residues = ["GLU", "ASP", "HIS", "CYS", "LYS"]
     rename_map_acids = {
-        'GLU': 'GLH',
-        'ASP': 'ASH',
+        "GLU": "GLH",
+        "ASP": "ASH",
     }
     protonation = {}
     str_ = ""
@@ -378,31 +389,70 @@ def extract_pkas(protein, conformation, parameters, target_ph):
         for group in protein.conformations[conformation].groups:
             if group.residue_type == residue_type:
                 # print(group.coupled_titrating_group)
-                str__ = f"{group.residue_type:>9s} {group.atom.res_num:>4d} " \
-                        f"{group.atom.chain_id:>9s} {group.pka_value:8.2f}\n"
+                str__ = (
+                    f"{group.residue_type:>9s} {group.atom.res_num:>4d} "
+                    f"{group.atom.chain_id:>9s} {group.pka_value:8.2f}\n"
+                )
                 str_ += str__
                 if group.residue_type in rename_residues:
                     if group.pka_value < target_ph:  # deprotonated
-                        # protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = False
-                        if group.residue_type == 'CYS':
-                            protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = 'CYM'
-                        elif group.residue_type == 'LYS':
-                            protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = 'LYN'
+                        # protonation[
+                        #     (
+                        #         group.residue_type,
+                        #         group.atom.chain_id,
+                        #         group.atom.res_num,
+                        #     )
+                        # ] = False
+                        if group.residue_type == "CYS":
+                            protonation[
+                                (
+                                    group.residue_type,
+                                    group.atom.chain_id,
+                                    group.atom.res_num,
+                                )
+                            ] = "CYM"
+                        elif group.residue_type == "LYS":
+                            protonation[
+                                (
+                                    group.residue_type,
+                                    group.atom.chain_id,
+                                    group.atom.res_num,
+                                )
+                            ] = "LYN"
                     else:
-                        # protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = True
+                        # protonation[
+                        #     (
+                        #         group.residue_type,
+                        #         group.atom.chain_id,
+                        #         group.atom.res_num,
+                        #     )
+                        # ] = True
                         if group.residue_type in rename_map_acids:  # protonated
-                            protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = \
-                                rename_map_acids[group.residue_type]
-                        if group.residue_type == 'HIS':
-                            protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = 'HIP'
+                            protonation[
+                                (
+                                    group.residue_type,
+                                    group.atom.chain_id,
+                                    group.atom.res_num,
+                                )
+                            ] = rename_map_acids[group.residue_type]
+                        if group.residue_type == "HIS":
+                            protonation[
+                                (
+                                    group.residue_type,
+                                    group.atom.chain_id,
+                                    group.atom.res_num,
+                                )
+                            ] = "HIP"
                 # else:
                 #     print(str__.strip())
     return protonation
 
 
-def assign_protonation_states(st: gemmi.Structure, target_ph: float = 7.5) -> gemmi.Structure:
+def assign_protonation_states(
+    st: gemmi.Structure, target_ph: float = 7.5
+) -> gemmi.Structure:
     result = st.clone()
-    cys_possible_names = ['CYS', 'CYM', 'CYX']
+    cys_possible_names = ["CYS", "CYM", "CYX"]
     index: gemmi.NeighborSearch = gemmi.NeighborSearch(st, 3)
     index.populate(include_h=False)
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -411,7 +461,9 @@ def assign_protonation_states(st: gemmi.Structure, target_ph: float = 7.5) -> ge
             write_pdb(st, tmp_pdb)
             # propka step
             mol = propka.run.single(tmp_pdb, write_pka=False)
-            protonation_states = extract_pkas(mol, 'AVR', mol.version.parameters, target_ph)
+            protonation_states = extract_pkas(
+                mol, "AVR", mol.version.parameters, target_ph
+            )
             print(protonation_states)
             chains = set([k[1] for k in protonation_states.keys()])
             for chain in result[0]:
@@ -422,25 +474,29 @@ def assign_protonation_states(st: gemmi.Structure, target_ph: float = 7.5) -> ge
                             residue.name = protonation_states[key]
                 for residue in chain:
                     # histidines
-                    if residue.name == 'HIS':
+                    if residue.name == "HIS":
                         atom_name_set = sorted(
-                            set(atom.name for atom in residue if atom.is_hydrogen()))
+                            set(atom.name for atom in residue if atom.is_hydrogen())
+                        )
                         # this should be taken care of by now
                         # if set(['HD1', 'HE2']).issubset(atom_name_set):
                         #     residue.name = 'HIP'
-                        if 'HD1' in atom_name_set:
-                            residue.name = 'HID'
-                        elif 'HE2' in atom_name_set:
-                            residue.name = 'HIE'
+                        if "HD1" in atom_name_set:
+                            residue.name = "HID"
+                        elif "HE2" in atom_name_set:
+                            residue.name = "HIE"
                     # disulfides
                     if residue.name in cys_possible_names:
-                        atom = residue.find_atom('SG', ' ', gemmi.Element('S'))
+                        atom = residue.find_atom("SG", " ", gemmi.Element("S"))
                         closest = index.find_neighbors(atom, 1.8, 2.3)
                         for mark in closest:
                             ref_at = mark.to_cra(st[0]).atom
                             ref_res = mark.to_cra(st[0]).residue
-                            if ref_res.name in cys_possible_names and ref_at.name == 'SG':
-                                residue.name = 'CYX'
+                            if (
+                                ref_res.name in cys_possible_names
+                                and ref_at.name == "SG"
+                            ):
+                                residue.name = "CYX"
                                 break
     result.cell = st.cell
     result.spacegroup_hm = st.spacegroup_hm
@@ -475,18 +531,18 @@ def prepare_5_terminal_nucleic_acids(st: gemmi.Structure) -> gemmi.Structure:
                     del_OP1 = False
                     del_OP2 = False
                     for atom in residue:
-                        if atom.name  == 'P':
+                        if atom.name == "P":
                             del_P = True
-                        elif atom.name == 'OP1':
+                        elif atom.name == "OP1":
                             del_OP1 = True
-                        elif atom.name == 'OP2':
+                        elif atom.name == "OP2":
                             del_OP2 = True
                     if del_P:
-                        residue.remove_atom('P', ' ', gemmi.Element('P'))
+                        residue.remove_atom("P", " ", gemmi.Element("P"))
                     if del_OP1:
-                        residue.remove_atom('OP1', ' ', gemmi.Element('O'))
+                        residue.remove_atom("OP1", " ", gemmi.Element("O"))
                     if del_OP2:
-                        residue.remove_atom('OP2', ' ', gemmi.Element('O'))
+                        residue.remove_atom("OP2", " ", gemmi.Element("O"))
 
                 first_res = False
     result.cell = st.cell
@@ -504,8 +560,13 @@ def minimize_in_python(st: gemmi.Structure, bellymask: str) -> gemmi.Structure:
             result.spacegroup_hm = st.spacegroup_hm
 
             from arx.amber import create_topology_and_input
-            create_topology_and_input(st, Path.cwd() / "wbox.prmtop", Path.cwd() / "wbox.inpcrd")
-            prmtop = parmed.load_file(str(Path.cwd() / "wbox.prmtop"), xyz=str(Path.cwd() / "wbox.inpcrd"))
+
+            create_topology_and_input(
+                st, Path.cwd() / "wbox.prmtop", Path.cwd() / "wbox.inpcrd"
+            )
+            prmtop = parmed.load_file(
+                str(Path.cwd() / "wbox.prmtop"), xyz=str(Path.cwd() / "wbox.inpcrd")
+            )
 
             # sander energy minimization
             inp = sander.gas_input(6)
@@ -522,16 +583,27 @@ def minimize_in_python(st: gemmi.Structure, bellymask: str) -> gemmi.Structure:
                 ene, frc = sander.energy_forces()
                 return ene.tot, -np.array(frc)
 
-            with sander.setup(str(Path.cwd() / "wbox.prmtop"), prmtop.coordinates, prmtop.box, inp) as sander_context:
+            with sander.setup(
+                str(Path.cwd() / "wbox.prmtop"), prmtop.coordinates, prmtop.box, inp
+            ) as sander_context:
                 print(sander_context)
                 # min_method = 'L-BFGS-B'
-                min_method = 'CG'
-                min_result = optimize.minimize(energy_function, prmtop.coordinates, method=min_method, jac=True,
-                                               options=dict(maxiter=50, disp=True, gtol=0.01))
+                min_method = "CG"
+                min_result = optimize.minimize(
+                    energy_function,
+                    prmtop.coordinates,
+                    method=min_method,
+                    jac=True,
+                    options=dict(maxiter=50, disp=True, gtol=0.01),
+                )
                 sander.set_positions(min_result.x)
-                optimized_coordinates = sander.get_positions(as_numpy=True).reshape((sander_context.natom, 3))
+                optimized_coordinates = sander.get_positions(as_numpy=True).reshape(
+                    (sander_context.natom, 3)
+                )
 
-            prmtop.save(tmp_pdb, coordinates=optimized_coordinates, standard_resnames=False)
+            prmtop.save(
+                tmp_pdb, coordinates=optimized_coordinates, standard_resnames=False
+            )
 
             coords = read_pdb(tmp_pdb)
             result = copy_coordinates(result, coords)
@@ -646,16 +718,16 @@ def remove_hydrogens(
 ) -> gemmi.Structure:
     result = st.clone()
     for (_, _, st_r), (_, _, ref_r) in zip(
-            iterate_over_residues(result), iterate_over_residues(reference)
+        iterate_over_residues(result), iterate_over_residues(reference)
     ):
         # condition for NAs
         if len(ref_r.name) < 3:
             unter_na = st_r.name
-            unter_na = unter_na.replace('3', '').replace('5', '')
+            unter_na = unter_na.replace("3", "").replace("5", "")
             condition = unter_na == ref_r.name
         # condition for histidines
-        elif ref_r.name.startswith('HI'):
-            condition = st_r.name.startswith('HI') and ref_r.name.startswith('HI')
+        elif ref_r.name.startswith("HI"):
+            condition = st_r.name.startswith("HI") and ref_r.name.startswith("HI")
         else:
             condition = st_r.name == ref_r.name
         assert condition
@@ -665,8 +737,8 @@ def remove_hydrogens(
                 if h_atom.name not in [atom.name for atom in ref_r]:
                     to_del.append(h_atom)
         for h_atom in to_del[::-1]:
-            st_r.remove_atom(h_atom.name, ' ', gemmi.Element('H'))
-        if st_r.name.startswith('HI'):
+            st_r.remove_atom(h_atom.name, " ", gemmi.Element("H"))
+        if st_r.name.startswith("HI"):
             st_r.name = ref_r.name
         if len(ref_r.name) < 3:
             st_r.name = ref_r.name
@@ -727,16 +799,23 @@ def copy_residue_names(
     return result
 
 
-def check_chain_and_residue_numbering(st: gemmi.Structure, ref: gemmi.Structure, strict: bool = True) -> bool:
+def check_chain_and_residue_numbering(
+    st: gemmi.Structure, ref: gemmi.Structure, strict: bool = True
+) -> bool:
     result = True
     for (_, st_c, st_r), (_, ref_c, ref_r) in zip(
-            iterate_over_residues(st), iterate_over_residues(ref)
+        iterate_over_residues(st), iterate_over_residues(ref)
     ):
         if strict:
             res_names_equal = st_r.name == ref_r.name
         else:
             res_names_equal = st_r.name[:2] == ref_r.name[:2]
-        result = result and st_c.name == ref_c.name and st_r.seqid.num == ref_r.seqid.num and res_names_equal
+        result = (
+            result
+            and st_c.name == ref_c.name
+            and st_r.seqid.num == ref_r.seqid.num
+            and res_names_equal
+        )
     return result
 
 
