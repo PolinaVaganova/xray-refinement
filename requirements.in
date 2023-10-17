@@ -3,3 +3,6 @@ biopython
 gemmi
 requests
 tqdm
+propka
+numpy
+scipy
