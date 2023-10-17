@@ -459,6 +459,36 @@ def add_missing_atoms(st: gemmi.Structure) -> gemmi.Structure:
     return result
 
 
+def prepare_5_terminal_nucleic_acids(st: gemmi.Structure) -> gemmi.Structure:
+    result = st.clone()
+    for model in result:
+        for chain in model:
+            first_res = True
+            for residue in chain:
+                if len(residue.name) < 3 and first_res:
+                    del_P = False
+                    del_OP1 = False
+                    del_OP2 = False
+                    for atom in residue:
+                        if atom.name  == 'P':
+                            del_P = True
+                        elif atom.name == 'OP1':
+                            del_OP1 = True
+                        elif atom.name == 'OP2':
+                            del_OP2 = True
+                    if del_P:
+                        residue.remove_atom('P', ' ', gemmi.Element('P'))
+                    if del_OP1:
+                        residue.remove_atom('OP1', ' ', gemmi.Element('O'))
+                    if del_OP2:
+                        residue.remove_atom('OP2', ' ', gemmi.Element('O'))
+
+                first_res = False
+    result.cell = st.cell
+    result.spacegroup_hm = st.spacegroup_hm
+    return result
+
+
 def apply_to_atoms(
     st: gemmi.Structure, atom_mutator: typing.Callable[[gemmi.Atom], None]
 ) -> gemmi.Structure:
