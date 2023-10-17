@@ -1,3 +1,4 @@
+remote-runner @ git+https://github.com/sizmailov/remote-runner.git@add-local-slurm-worker
 amber-runner
 biopython
 gemmi

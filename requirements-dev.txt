@@ -105,7 +105,7 @@ pytest==6.2.5
     # via -r requirements-dev.in
 pyyaml==6.0
     # via pre-commit
-remote-runner==0.2.0
+remote-runner @ git+https://github.com/sizmailov/remote-runner.git@add-local-slurm-worker
     # via
     #   -r requirements.txt
     #   amber-runner
