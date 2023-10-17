@@ -5,6 +5,7 @@ import tempfile
 import typing
 
 import gemmi
+import propka.run
 
 from .utils import chdir, check_call
 
@@ -293,6 +294,88 @@ def neutralize_with_ions(
     count = abs(total_charge)
     n_protein_atoms = st[0].count_atom_sites()
     return add_ions(st, ion, count=count, n_protein_atoms=n_protein_atoms)
+
+
+def extract_pkas(protein, conformation, parameters, target_ph):
+    rename_residues = ['GLU', 'ASP', 'HIS', 'CYS', 'LYS']
+    rename_map_acids = {
+        'GLU': 'GLH',
+        'ASP': 'ASH',
+    }
+    protonation = {}
+    str_ = ""
+    # printing pKa summary
+    for residue_type in parameters.write_out_order:
+        for group in protein.conformations[conformation].groups:
+            if group.residue_type == residue_type:
+                # print(group.coupled_titrating_group)
+                str__ = f"{group.residue_type:>9s} {group.atom.res_num:>4d} " \
+                        f"{group.atom.chain_id:>9s} {group.pka_value:8.2f}\n"
+                str_ += str__
+                if group.residue_type in rename_residues:
+                    if group.pka_value < target_ph:  # deprotonated
+                        # protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = False
+                        if group.residue_type == 'CYS':
+                            protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = 'CYM'
+                        elif group.residue_type == 'LYS':
+                            protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = 'LYN'
+                    else:
+                        # protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = True
+                        if group.residue_type in rename_map_acids:  # protonated
+                            protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = \
+                                rename_map_acids[group.residue_type]
+                        if group.residue_type == 'HIS':
+                            protonation[(group.residue_type, group.atom.chain_id, group.atom.res_num)] = 'HIP'
+                # else:
+                #     print(str__.strip())
+    return protonation
+
+
+def assign_protonation_states(st: gemmi.Structure, target_ph: float = 7.5) -> gemmi.Structure:
+    result = st.clone()
+    cys_possible_names = ['CYS', 'CYM', 'CYX']
+    index: gemmi.NeighborSearch = gemmi.NeighborSearch(st, 3)
+    index.populate(include_h=False)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with chdir(tmpdir):
+            tmp_pdb = "tmp.pdb"
+            write_pdb(st, tmp_pdb)
+            # propka step
+            mol = propka.run.single(tmp_pdb, write_pka=False)
+            protonation_states = extract_pkas(mol, 'AVR', mol.version.parameters, target_ph)
+            print(protonation_states)
+            chains = set([k[1] for k in protonation_states.keys()])
+            for chain in result[0]:
+                if chain.name in chains:
+                    for residue in chain:
+                        key = (str(residue.name), str(chain.name), residue.seqid.num)
+                        if key in protonation_states.keys():
+                            residue.name = protonation_states[key]
+                for residue in chain:
+                    # histidines
+                    if residue.name == 'HIS':
+                        atom_name_set = sorted(
+                            set(atom.name for atom in residue if atom.is_hydrogen()))
+                        # this should be taken care of by now
+                        # if set(['HD1', 'HE2']).issubset(atom_name_set):
+                        #     residue.name = 'HIP'
+                        if 'HD1' in atom_name_set:
+                            residue.name = 'HID'
+                        elif 'HE2' in atom_name_set:
+                            residue.name = 'HIE'
+                    # disulfides
+                    if residue.name in cys_possible_names:
+                        atom = residue.find_atom('SG', ' ', gemmi.Element('S'))
+                        closest = index.find_neighbors(atom, 1.8, 2.3)
+                        for mark in closest:
+                            ref_at = mark.to_cra(st[0]).atom
+                            ref_res = mark.to_cra(st[0]).residue
+                            if ref_res.name in cys_possible_names and ref_at.name == 'SG':
+                                residue.name = 'CYX'
+                                break
+    result.cell = st.cell
+    result.spacegroup_hm = st.spacegroup_hm
+    return result
 
 
 def add_missing_atoms(st: gemmi.Structure) -> gemmi.Structure:
