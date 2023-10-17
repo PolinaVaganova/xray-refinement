@@ -9,6 +9,26 @@ from .utils import chdir, check_call
 
 AnyPath = typing.Union[str, bytes, os.PathLike]
 
+tleap_in = """
+source leaprc.protein.ff14SB
+source leaprc.DNA.OL15
+source leaprc.RNA.OL3
+
+HOH = SPC
+WAT = SPC
+
+loadAmberParams frcmod.ionsjc_spce
+loadAmberParams frcmod.ions1lm_1264_spce
+loadAmberParams frcmod.spce
+
+wbox = loadpdb input.pdb
+set default nocenter on
+setBox wbox vdw 1.0
+saveamberparm wbox wbox.prmtop wbox.inpcrd
+savepdb wbox wbox.dry.pdb
+quit
+"""
+
 
 def add_ions(
     st: gemmi.Structure, ion: gemmi.Structure, count: int, *, n_protein_atoms: int
@@ -77,23 +97,6 @@ def add_water(st: gemmi.Structure, water: gemmi.Structure) -> gemmi.Structure:
 
 
 def calc_total_charge(st: gemmi.Structure) -> int:
-    tleap_in = """
-source oldff/leaprc.ff14SB
-
-HOH = SPC
-WAT = SPC
-
-loadAmberParams frcmod.ionsjc_spce
-loadAmberParams frcmod.ions1lm_1264_spce
-loadAmberParams frcmod.spce
-
-wbox = loadpdb input.pdb
-setBox wbox vdw 1.0
-saveamberparm wbox wbox.prmtop wbox.inpcrd
-savepdb wbox wbox.dry.pdb
-quit
-"""
-
     with tempfile.TemporaryDirectory() as tmpdir:
         with chdir(tmpdir):
             write_pdb(st, "input.pdb")
