@@ -542,11 +542,15 @@ class ProcessPDB:
                 continue
             filename_base = f"structure_factors/{code}-sf"
             if not isfile(f"{filename_base}.mtz"):
+                command_cis_as_mtz = f"phenix.cif_as_mtz {filename_base}.cif --ignore_bad_sigmas --merge " \
+                                     f"--output_file_name={filename_base}.mtz"
+                if code == '1xnh':
+                    command_cis_as_mtz += ' --incompatible_flags_to_work_set'
+                if code == '2no2':
+                    command_cis_as_mtz += ' --symmetry "P 42 21 2"'
+
                 s = subprocess.run(
-                    shlex.split(
-                        f"phenix.cif_as_mtz {filename_base}.cif --ignore_bad_sigmas --merge "
-                        f"--output_file_name={filename_base}.mtz"
-                    ),
+                    shlex.split(command_cis_as_mtz),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
