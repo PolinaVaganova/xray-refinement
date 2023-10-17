@@ -9,23 +9,6 @@ import gemmi
 from amber_runner.MD import MdProtocol, PmemdCommand, SingleSanderCall, Step
 from remote_runner import Task
 
-from arx.utils import check_call
-
-
-def count_polymer_residues(
-    st: gemmi.Structure,
-) -> int:
-    non_polymer_residue_names = ["WAT", "Cl-", "Na+"]
-    count = 0
-    for model in st:
-        for chain in model:
-            for residue in chain:  # type: gemmi.Residue
-                if residue.name in non_polymer_residue_names:
-                    return count
-                else:
-                    count += 1
-    return count
-
 
 class Prepare(Step):
     @classmethod
@@ -125,6 +108,8 @@ class Prepare(Step):
         )
 
     def prepare_xray_prmtop(self):
+        from arx.utils import check_call
+
         tmp_parm = self.step_dir / "tmp.parm7"
         parmed_add_xray_parameters_in = self.step_dir / "parmed.add-xray-parameters.in"
         parmed_in = f"""
@@ -158,7 +143,22 @@ go
         )
 
     def prepare_files_for_next_stages(self, md: RefinementProtocol):
+        import gemmi
         from amber_runner.inputs import AmberInput
+
+        def count_polymer_residues(
+            st: gemmi.Structure,
+        ) -> int:
+            non_polymer_residue_names = ["WAT", "Cl-", "Na+"]
+            count = 0
+            for model in st:
+                for chain in model:
+                    for residue in chain:  # type: gemmi.Residue
+                        if residue.name in non_polymer_residue_names:
+                            return count
+                        else:
+                            count += 1
+            return count
 
         # Set global attributes
         md.sander.prmtop = str(self.wbox_xray_prmtop_path)
@@ -332,6 +332,7 @@ class ConvertToPdb(Step):
             remove_ligands_and_water,
             write_pdb,
         )
+        from arx.utils import check_call
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_pdb = Path(tmp_dir) / "tmp.pdb"
