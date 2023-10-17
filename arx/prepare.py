@@ -320,6 +320,44 @@ def remove_water(st: gemmi.Structure) -> gemmi.Structure:
     return result
 
 
+def remove_empty_chains(st: gemmi.Structure) -> gemmi.Structure:
+    result = st.clone()
+    result.remove_empty_chains()
+    return result
+
+
+def remove_hydrogens(
+    st: gemmi.Structure, reference: gemmi.Structure
+) -> gemmi.Structure:
+    result = st.clone()
+    for (_, _, st_r), (_, _, ref_r) in zip(
+            iterate_over_residues(result), iterate_over_residues(reference)
+    ):
+        # condition for NAs
+        if len(ref_r.name) < 3:
+            unter_na = st_r.name
+            unter_na = unter_na.replace('3', '').replace('5', '')
+            condition = unter_na == ref_r.name
+        # condition for histidines
+        elif ref_r.name.startswith('HI'):
+            condition = st_r.name.startswith('HI') and ref_r.name.startswith('HI')
+        else:
+            condition = st_r.name == ref_r.name
+        assert condition
+        to_del = []
+        for h_atom in st_r:
+            if h_atom.is_hydrogen():
+                if h_atom.name not in [atom.name for atom in ref_r]:
+                    to_del.append(h_atom)
+        for h_atom in to_del[::-1]:
+            st_r.remove_atom(h_atom.name, ' ', gemmi.Element('H'))
+        if st_r.name.startswith('HI'):
+            st_r.name = ref_r.name
+        if len(ref_r.name) < 3:
+            st_r.name = ref_r.name
+    return result
+
+
 def read_pdb(path: AnyPath) -> gemmi.Structure:
     return gemmi.read_pdb(str(path), split_chain_on_ter=True)
 
