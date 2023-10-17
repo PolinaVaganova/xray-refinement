@@ -60,9 +60,14 @@ class Prepare(Step):
             )
 
         H, K, L, FOBS, SIGMA_FOBS = [
-            mtz.column_with_label(label) or missing_column(label)
+            mtz.column_with_label(label)  # or missing_column(label)
             for label in ("H", "K", "L", "FOBS", "SIGFOBS")
         ]
+        # if SIGMA_FOBS was not found, fill it with ones
+        # currently it's not used anyway
+        if not SIGMA_FOBS:
+            import numpy as np
+            SIGMA_FOBS = np.ones(len(FOBS))
 
         n_positive_r_flags = sum(R_FREE_FLAG)
         flag_is_one = n_positive_r_flags > len(R_FREE_FLAG) / 2
