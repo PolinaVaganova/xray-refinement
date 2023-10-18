@@ -465,12 +465,12 @@ def assign_protonation_states(
             protonation_states = extract_pkas(
                 mol, "AVR", mol.version.parameters, target_ph
             )
-            print(protonation_states)
             chains = set([k[1] for k in protonation_states.keys()])
             for chain in result[0]:
-                if chain.name in chains:
+                chain_name = str(chain.name).strip()
+                if chain_name in chains:
                     for residue in chain:
-                        key = (str(residue.name), str(chain.name), residue.seqid.num)
+                        key = (str(residue.name), chain_name, residue.seqid.num)
                         if key in protonation_states.keys():
                             residue.name = protonation_states[key]
                 for residue in chain:
