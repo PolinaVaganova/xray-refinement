@@ -2,9 +2,7 @@
 
 
 source venv/bin/activate
-
-export AMBERHOME="/opt/amber/"
-export AMBER_PREFIX="$AMBERHOME"
-export PATH="$AMBERHOME/bin:$PATH"
+source /opt/amber/amber.sh
+export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 python init.py

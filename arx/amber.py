@@ -34,7 +34,9 @@ def create_topology_and_input(
 ) -> gemmi.Structure:
     bond_commands = get_ss_bond_commands(st)
     config = f"""
-source oldff/leaprc.ff14SB
+source leaprc.protein.ff14SB
+source leaprc.DNA.OL15
+source leaprc.RNA.OL3
 source leaprc.water.tip3p
 
 wbox = loadpdb input.pdb

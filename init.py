@@ -9,32 +9,16 @@ import gemmi
 from amber_runner.MD import MdProtocol, PmemdCommand, SingleSanderCall, Step
 from remote_runner import Task
 
-from arx.utils import check_call
-
-
-def count_polymer_residues(
-    st: gemmi.Structure,
-) -> int:
-    non_polymer_residue_names = ["WAT", "Cl-", "Na+"]
-    count = 0
-    for model in st:
-        for chain in model:
-            for residue in chain:  # type: gemmi.Residue
-                if residue.name in non_polymer_residue_names:
-                    return count
-                else:
-                    count += 1
-    return count
-
 
 class Prepare(Step):
     @classmethod
     def write_sf_dat_file(
-        cls, mtz: "gemmi.Mtz", output_filename: Union[os.PathLike, str]
+        cls, mtz: "gemmi.Mtz", output_filename: Union[os.PathLike, str], cell_size: int
     ):
         """Write .tab file for pmemd.arx
         :param mtz: mtz file with P1 symmetry
         :param output_filename: output .dat filename
+        :param cell_size: size of supercell
         """
         import re
 
@@ -59,9 +43,15 @@ class Prepare(Step):
             )
 
         H, K, L, FOBS, SIGMA_FOBS = [
-            mtz.column_with_label(label) or missing_column(label)
+            mtz.column_with_label(label)  # or missing_column(label)
             for label in ("H", "K", "L", "FOBS", "SIGFOBS")
         ]
+        # if SIGMA_FOBS was not found, fill it with ones
+        # currently it's not used anyway
+        if not SIGMA_FOBS:
+            import numpy as np
+
+            SIGMA_FOBS = np.ones(len(FOBS))
 
         n_positive_r_flags = sum(R_FREE_FLAG)
         flag_is_one = n_positive_r_flags > len(R_FREE_FLAG) / 2
@@ -74,7 +64,8 @@ class Prepare(Step):
             ):
                 r = r_flag if flag_is_one else 1 - r_flag
                 output.write(
-                    f"{h:3.0f} {k:3.0f} {l:3.0f} {fobs:15.8e} {sigma:15.8e} {r:1.0f}\n"
+                    f"{h*cell_size:3.0f} {k*cell_size:3.0f} {l*cell_size:3.0f} "
+                    f"{fobs:15.8e} {sigma:15.8e} {r:1.0f}\n"
                 )
 
     def __init__(
@@ -84,6 +75,8 @@ class Prepare(Step):
         rst7: Path,
         pdb: Path,
         mtz: Path,
+        xray_weight_target: float,
+        cell_size: int,
     ):
         Step.__init__(self, name)
 
@@ -93,6 +86,8 @@ class Prepare(Step):
         self.wbox_prmtop = parm7
         self.wbox_inpcrd_path = rst7
         self.wbox_pdb = pdb
+        self.xray_weight_target = xray_weight_target
+        self.cell_size = cell_size
 
     @property
     def wbox_xray_prmtop_path(self):
@@ -106,9 +101,15 @@ class Prepare(Step):
         import gemmi
 
         mtz = gemmi.read_mtz_file(str(self.input_mtz_path))
-        self.write_sf_dat_file(mtz=mtz, output_filename=self.structure_factors_dat)
+        self.write_sf_dat_file(
+            mtz=mtz,
+            output_filename=self.structure_factors_dat,
+            cell_size=self.cell_size,
+        )
 
     def prepare_xray_prmtop(self):
+        from arx.utils import check_call
+
         tmp_parm = self.step_dir / "tmp.parm7"
         parmed_add_xray_parameters_in = self.step_dir / "parmed.add-xray-parameters.in"
         parmed_in = f"""
@@ -142,7 +143,22 @@ go
         )
 
     def prepare_files_for_next_stages(self, md: RefinementProtocol):
+        import gemmi
         from amber_runner.inputs import AmberInput
+
+        def count_polymer_residues(
+            st: gemmi.Structure,
+        ) -> int:
+            non_polymer_residue_names = ["WAT", "Cl-", "Na+"]
+            count = 0
+            for model in st:
+                for chain in model:
+                    for residue in chain:  # type: gemmi.Residue
+                        if residue.name in non_polymer_residue_names:
+                            return count
+                        else:
+                            count += 1
+            return count
 
         # Set global attributes
         md.sander.prmtop = str(self.wbox_xray_prmtop_path)
@@ -189,6 +205,7 @@ go
         )
 
         # Configure evolution
+        nstlim = 5000
         md.evolution.input.cntrl(
             imin=0,
             irest=1,
@@ -207,7 +224,7 @@ go
             ntr=0,
             ntc=2,
             ntf=2,
-            nstlim=5000,
+            nstlim=nstlim,
             nscm=100,
             dt=0.002,
             ntpr=100,
@@ -223,7 +240,7 @@ go
             reflection_infile=self.structure_factors_dat,
             atom_selection_mask=f":1-{n_polymer_residues}",
             xray_weight_initial=0.0,
-            xray_weight_final=1.0,
+            xray_weight_final=self.xray_weight_target,
             target="ml",
             bulk_solvent_model="afonine-2013",
         )
@@ -234,7 +251,7 @@ go
             ntx=5,
             irest=1,
             iwrap=1,
-            nstlim=5000,
+            nstlim=nstlim,
             dt=0.002,
             ntf=2,
             ntc=2,
@@ -257,30 +274,44 @@ go
             pdb_read_coordinates=False,
             reflection_infile=self.structure_factors_dat,
             atom_selection_mask=f":1-{n_polymer_residues}",
-            xray_weight_initial=1.0,
-            xray_weight_final=1.0,
+            xray_weight_initial=self.xray_weight_target,
+            xray_weight_final=self.xray_weight_target,
             target="ml",
             bulk_solvent_model="afonine-2013",
         )
 
-        for istep1, istep2, value1, value2 in [
-            (0, 500, 293.0, 262.5),
-            (501, 625, 262.5, 262.5),
-            (626, 1125, 262.5, 225.0),
-            (1125, 1250, 225.0, 225.0),
-            (1251, 1750, 225.0, 187.5),
-            (1751, 1875, 187.5, 187.5),
-            (1876, 2375, 187.5, 150.0),
-            (2376, 2500, 150.0, 150.0),
-            (2501, 3000, 150.0, 112.5),
-            (3001, 3125, 112.5, 112.5),
-            (3126, 3625, 112.5, 75.0),
-            (3626, 3750, 75.0, 75.0),
-            (3751, 4250, 75.0, 37.5),
-            (4251, 4375, 37.5, 37.5),
-            (4376, 4875, 37.5, 0.0),
-            (4876, 5000, 0.0, 0.0),
-        ]:
+        cool_steps = []
+        start = 0
+        steps_inc = 500
+        steps_inc_steady = 125
+        temp = 300.0
+        steps = nstlim // (steps_inc + steps_inc_steady)
+        temp_inc = -temp / steps
+
+        for i in range(steps):
+            if i == 0:
+                cool_steps.append((start, start + steps_inc, 298.0, temp + temp_inc))
+                cool_steps.append(
+                    (
+                        start + steps_inc + 1,
+                        start + steps_inc + steps_inc_steady,
+                        temp + temp_inc,
+                        temp + temp_inc,
+                    )
+                )
+            else:
+                cool_steps.append((start + 1, start + steps_inc, temp, temp + temp_inc))
+                cool_steps.append(
+                    (
+                        start + steps_inc + 1,
+                        start + steps_inc + steps_inc_steady,
+                        temp + temp_inc,
+                        temp + temp_inc,
+                    )
+                )
+            start += steps_inc + steps_inc_steady
+            temp += temp_inc
+        for istep1, istep2, value1, value2 in cool_steps:
             md.cooling.input.varying_conditions.add(
                 type="TEMP0", istep1=istep1, istep2=istep2, value1=value1, value2=value2
             )
@@ -301,6 +332,7 @@ class ConvertToPdb(Step):
             remove_ligands_and_water,
             write_pdb,
         )
+        from arx.utils import check_call
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_pdb = Path(tmp_dir) / "tmp.pdb"
@@ -329,10 +361,19 @@ class ConvertToPdb(Step):
 
 
 class RefinementProtocol(MdProtocol):
-    def __init__(self, pdb: Path, mtz: Path, parm7: Path, rst7: Path, output_dir: Path):
+    def __init__(
+        self,
+        pdb: Path,
+        mtz: Path,
+        parm7: Path,
+        rst7: Path,
+        output_dir: Path,
+        xray_weight_target: float,
+        cell_size: int,
+    ):
         wd = output_dir
         wd.mkdir(mode=0o755, exist_ok=True, parents=True)
-        MdProtocol.__init__(self, name="B0", wd=wd)
+        MdProtocol.__init__(self, name=str(wd).split("/")[-2] + "_amb", wd=wd)
 
         self.sander = PmemdCommand()
         self.sander.executable = ["pmemd.cuda"]
@@ -344,6 +385,8 @@ class RefinementProtocol(MdProtocol):
             mtz=mtz,
             parm7=parm7,
             rst7=rst7,
+            xray_weight_target=xray_weight_target,
+            cell_size=cell_size,
         )
 
         self.minimize = SingleSanderCall("minimize")
@@ -355,32 +398,70 @@ class RefinementProtocol(MdProtocol):
 
 def create_tasks(subset: str):
     tasks = []
-    for pdb_code in ["2msi"]:
-        input_dir = Path.cwd() / "data" / "input" / pdb_code / subset
-        output_dir = Path.cwd() / "data" / "output" / pdb_code / subset
+    # collect structures with missing files
+    bad_tasks_parm = []
+    bad_tasks_pdb = []
+    bad_tasks_mtz = []
 
+    cell_size = 1
+    xray_weight = 1.0
+    topology_dir = "amber-topology"
+    # extract supercell wieght based on 'subset' name
+    if ".sc" in subset:
+        cell_size = 2
+        xray_weight_t = subset.split(".sc")[1]
+        if xray_weight_t != "":
+            xray_weight = float(xray_weight_t)
+        topology_dir += "-sc"
+
+    for pdb_code in ["1wou"]:
+        input_dir = Path.cwd() / "data" / topology_dir / pdb_code
+        original_input_dir = Path.cwd() / "data" / "input" / pdb_code
+        output_dir = Path.cwd() / "data" / "output" / pdb_code / subset
+        # shutil.rmtree(output_dir)
         # Copy input files to trajectory folder
         input_copy = output_dir / "inputs"
-        input_copy.mkdir(exist_ok=True, parents=True)
         pdb = input_copy / "wbox.pdb"
         mtz = input_copy / f"{pdb_code}.mtz"
         rst7 = input_copy / "wbox.rst7"
         parm7 = input_copy / "wbox.parm7"
 
-        shutil.copy(input_dir / "wbox.pdb", pdb)
-        shutil.copy(input_dir / f"{pdb_code}.mtz", mtz)
-        shutil.copy(input_dir / "wbox.rst7", rst7)
-        shutil.copy(input_dir / "wbox.parm7", parm7)
+        # skip execution if ferined structure already exists
+        if (output_dir / "5_convert_to_pdb" / "final.pdb").exists():
+            continue
 
-        md = RefinementProtocol(
-            pdb=pdb.relative_to(output_dir),
-            mtz=mtz.relative_to(output_dir),
-            rst7=rst7.relative_to(output_dir),
-            parm7=parm7.relative_to(output_dir),
-            output_dir=output_dir,
-        )
-        md.save(md.wd / "state.dill")
-        tasks.append(md)
+        if (
+            not (input_dir / "wbox.rst7").exists()
+            or not (input_dir / "wbox.parm7").exists()
+        ):
+            bad_tasks_parm.append(pdb_code)
+        elif not (input_dir / "wbox.pdb").exists():
+            bad_tasks_pdb.append(pdb_code)
+        elif not (original_input_dir / f"{pdb_code}.mtz").exists():
+            bad_tasks_mtz.append(pdb_code)
+        else:
+            input_copy.mkdir(exist_ok=True, parents=True)
+            shutil.copy(input_dir / "wbox.pdb", pdb)
+            shutil.copy(original_input_dir / f"{pdb_code}.mtz", mtz)
+            shutil.copy(input_dir / "wbox.rst7", rst7)
+            shutil.copy(input_dir / "wbox.parm7", parm7)
+
+            md = RefinementProtocol(
+                pdb=pdb.relative_to(output_dir),
+                mtz=mtz.relative_to(output_dir),
+                rst7=rst7.relative_to(output_dir),
+                parm7=parm7.relative_to(output_dir),
+                output_dir=output_dir,
+                xray_weight_target=xray_weight,
+                cell_size=cell_size,
+            )
+            md.save(md.wd / "state.dill")
+            tasks.append(md)
+    print(f"Structures with missing parm file: {', '.join(bad_tasks_parm)}")
+    print(f"Structures with missing pdb file: {', '.join(bad_tasks_pdb)}")
+    print(f"Structures with missing mtz file: {', '.join(bad_tasks_mtz)}")
+    print(f"Prepared {len(tasks)} jobs")
+
     return tasks
 
 
@@ -404,7 +485,7 @@ def run_sequentially_inplace(tasks: List[Task]):
 def main():
     tasks = create_tasks("prepared")
     assert tasks
-    run_sequentially_inplace(tasks)
+    # run_sequentially_inplace(tasks)
 
 
 if __name__ == "__main__":
