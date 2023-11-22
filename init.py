@@ -193,7 +193,7 @@ go
             ntwr=1000,
             ntwx=200,
             ntx=1,
-            temp0=293.0,
+            temp0=298.0,
             tempi=0.0,
         )
         md.heating.input.pin(
