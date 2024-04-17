@@ -216,10 +216,10 @@ def main():
     logger.setLevel(logging.INFO)
 
     # settings
-    path_to_annotation_csv = "../../1_annotated_rcsb/run_16.04_1nko.csv"
+    path_to_annotation_csv = "1_annotated_rcsb/run_16.04_1nko.csv"
     option = "rapper"
     n_parallel = 18
-    run_dir = "../../4_protocol_run"
+    run_dir = "4_protocol_run"
 
     pdb_df = pd.read_csv(path_to_annotation_csv, sep=',')
     pdb_ids = pdb_df["pdb_id"]
