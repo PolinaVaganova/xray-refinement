@@ -88,7 +88,7 @@ if __name__ == '__main__':
             path_to_modelled_loops = os.path.join(path_to_modelled_loops, pdb_id, f'grafted_loop')
             path_to_modelled_pdbs = glob(os.path.join(path_to_modelled_loops, f'{pdb_id}_rapper_*.pdb'))
 
-        elif option == 'modeller':
+        else:
             # fix this path later
             path_to_modelled_pdbs = glob(os.path.join(path_to_modelled_loops, '*Chain*.pdb'))
 
@@ -111,20 +111,16 @@ if __name__ == '__main__':
             # write output pdb file
             path_to_fout = os.path.join(path_to_out_dir, os.path.basename(modelled_pdb))
             st_modelled_b_factors.setup_entities()
-            st_modelled_b_factors.assign_label_seq_id()
 
-            # st_modelled_b_factors.entities = st_original.entities
-            # print(st_modelled_b_factors.entities)
-            for entity in st_modelled_b_factors.entities:
-                entity.subchains = annotation_df[annotation_df['pdb_id'] == pdb_id]['chain_ids']
-                print(entity.entity_type)
+            # st_modelled_b_factors_str = st_modelled_b_factors.make_pdb_string(
+            #     gemmi.PdbWriteOptions(cryst1_record=False, end_record=True, ter_records=True))
 
-            st_modelled_b_factors_str = st_modelled_b_factors.make_pdb_string(
-                gemmi.PdbWriteOptions(cryst1_record=False, end_record=True, ter_records=True))
+            st_modelled_b_factors.write_pdb(path_to_fout, gemmi.PdbWriteOptions(cryst1_record=False, end_record=True,
+                                                                                ter_records=True))
 
-            with open(path_to_fout, "w") as fout:
-                fout.writelines(original_header)
-                fout.writelines(st_modelled_b_factors_str)
+            # with open(path_to_fout, "w") as fout:
+            #     fout.writelines(original_header)
+            #     fout.writelines(st_modelled_b_factors_str)
 
             st_test = read_pdb(path_to_fout)
 
