@@ -142,6 +142,7 @@ go
         )
 
     def prepare_files_for_next_stages(self, md: RefinementProtocol):
+        import gemmi
         from amber_runner.inputs import AmberInput
 
         def count_polymer_residues(
