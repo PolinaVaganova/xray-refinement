@@ -29,7 +29,7 @@ gemmi==0.6.5
     # via -r requirements.in
 idna==3.3
     # via requests
-numpy==1.22.1
+numpy==1.22.4
     # via
     #   -r requirements.in
     #   biopython
