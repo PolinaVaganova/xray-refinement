@@ -113,7 +113,7 @@ if __name__ == '__main__':
             path_to_fout = os.path.join(path_to_out_dir, os.path.basename(modelled_pdb))
             st_modelled_b_factors.setup_entities()
             st_modelled_b_factors.assign_label_seq_id()
-            print(st_modelled_b_factors.entities)
+
             # st_modelled_b_factors.entities = st_original.entities
             # print(st_modelled_b_factors.entities)
 
@@ -125,7 +125,15 @@ if __name__ == '__main__':
                 fout.writelines(st_modelled_b_factors_str)
 
             st_test = read_pdb(path_to_fout)
-            print(st_test.entities)
+
+            for entity in st_test.entities:
+                print(entity)
+                print(entity.entity_type)
+                print(entity.name)
+                print(entity.subchains)
+                print(entity.polymer_type)
+                print(entity.full_sequence[:5])
+
 
             # make symlink for mtz file
             if not os.path.islink(os.path.join(path_to_out_dir, f'{pdb_id}.mtz')):
