@@ -221,7 +221,7 @@ def main():
     n_parallel = 18
     run_dir = "4_protocol_run"
 
-    pdb_df = pd.read_csv(path_to_annotation_csv, sep=',')
+    pdb_df = pd.read_csv(path_to_annotation_csv, sep=",")
     pdb_ids = pdb_df["pdb_id"]
 
     for pdb_id in pdb_ids:
