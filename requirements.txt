@@ -56,3 +56,4 @@ tqdm==4.62.3
     # via -r requirements.in
 urllib3==1.26.8
     # via requests
+pandas==2.2.2
