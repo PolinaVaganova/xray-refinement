@@ -64,12 +64,12 @@ if __name__ == '__main__':
 
     # settings paths
     option = 'rapper'
-    path_to_annotation_csv = '../../1_annotated_rcsb/run_16.04_1nko.csv'
-    path_to_rcsb_data = '../../2_rcsb_data/'
+    path_to_annotation_csv = '1_annotated_rcsb/run_16.04_1nko.csv'
+    path_to_rcsb_data = '2_rcsb_data'
     path_to_original_pdbs = os.path.join(path_to_rcsb_data, 'pdb')
     path_to_original_mtz = os.path.join(path_to_rcsb_data, 'mtz')
-    data_input_dir = '../../4_protocol_run/input/'
-    path_to_modelled_loops = os.path.join('../../3_loop_modelling/', option)
+    data_input_dir = '4_protocol_run/input/'
+    path_to_modelled_loops = os.path.join('3_loop_modelling/', option)
 
     # read annotation df
     annotation_df = pd.read_csv(path_to_annotation_csv, sep=',')
