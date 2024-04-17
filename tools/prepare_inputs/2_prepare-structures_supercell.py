@@ -70,49 +70,49 @@ def create_parm7_rst7_from(
 ) -> gemmi.Structure:
     print(structure.entities)
     print('i am here')
-    target_ph = get_target_ph(structure)
-    logger.info(f"pH is {target_ph}")
-
-    reference = (
-        StructurePipeInput(structure, debug_dir=debug_dir / "reference")
-        .do(remove_ligands_and_water)
-        .do(remove_alternative_conformations)
-        .do(remove_empty_chains)
-        .do(retain_only_standard_resnames)
-        .do(expand_non_crystallographic_symmetries)
-        .do(expand_crystallographic_symmetries)
-        .do(expand_supercell, supercell_size=supercell_size)
-        .do(renumber_residues)
-    )
-    # For further developement:
-    # To handle nucleic acids as the last step one would
-    # .do(prepare_5_terminal_nucleic_acids)
-    reference_st = reference.st.clone()
-
-    reference_protonation = (
-        StructurePipeInput(reference_st, debug_dir=debug_dir / "protonation_naming")
-        .do(add_missing_atoms)
-        .do(renumber_residues)
-        .do(remove_hydrogens, reference=reference_st)
-        .do(assign_protonation_states, target_ph=target_ph)
-    )
-    reference_protonation_st = reference_protonation.st.clone()
-
-    # This is a prototype of the code to handle gaps in chains
-    # One would need to additionally import from arx.prepare:
-    # find_gaps, apply_additional_ters,
-    # check_chain_and_residue_numbering
+    # target_ph = get_target_ph(structure)
+    # logger.info(f"pH is {target_ph}")
     #
-    # reference_protonation_st, additional_ter_residues = find_gaps(
-    #     reference_protonation.st
+    # reference = (
+    #     StructurePipeInput(structure, debug_dir=debug_dir / "reference")
+    #     .do(remove_ligands_and_water)
+    #     .do(remove_alternative_conformations)
+    #     .do(remove_empty_chains)
+    #     .do(retain_only_standard_resnames)
+    #     .do(expand_non_crystallographic_symmetries)
+    #     .do(expand_crystallographic_symmetries)
+    #     .do(expand_supercell, supercell_size=supercell_size)
+    #     .do(renumber_residues)
     # )
-
-    additional_ter_residues = []
-    if len(additional_ter_residues) > 0:
-        logger.info(
-            f"Gaps have been detected at residues: "
-            f"{', '.join([str(t) for t in additional_ter_residues])}"
-        )
+    # # For further developement:
+    # # To handle nucleic acids as the last step one would
+    # # .do(prepare_5_terminal_nucleic_acids)
+    # reference_st = reference.st.clone()
+    #
+    # reference_protonation = (
+    #     StructurePipeInput(reference_st, debug_dir=debug_dir / "protonation_naming")
+    #     .do(add_missing_atoms)
+    #     .do(renumber_residues)
+    #     .do(remove_hydrogens, reference=reference_st)
+    #     .do(assign_protonation_states, target_ph=target_ph)
+    # )
+    # reference_protonation_st = reference_protonation.st.clone()
+    #
+    # # This is a prototype of the code to handle gaps in chains
+    # # One would need to additionally import from arx.prepare:
+    # # find_gaps, apply_additional_ters,
+    # # check_chain_and_residue_numbering
+    # #
+    # # reference_protonation_st, additional_ter_residues = find_gaps(
+    # #     reference_protonation.st
+    # # )
+    #
+    # additional_ter_residues = []
+    # if len(additional_ter_residues) > 0:
+    #     logger.info(
+    #         f"Gaps have been detected at residues: "
+    #         f"{', '.join([str(t) for t in additional_ter_residues])}"
+    #     )
     #     reference_st = renumber_residues(
     #         apply_additional_ters(reference_st, additional_ter_residues)
     #     )
