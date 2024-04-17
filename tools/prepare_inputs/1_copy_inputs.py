@@ -37,7 +37,6 @@ def read_pdb(path: AnyPath) -> gemmi.Structure:
 
 def copy_b_factor(structure,
                   original_structure):
-
     original_b_factor_dict = {}
 
     for model in original_structure:
@@ -116,6 +115,8 @@ if __name__ == '__main__':
 
             # st_modelled_b_factors.entities = st_original.entities
             # print(st_modelled_b_factors.entities)
+            for entity in st_modelled_b_factors.entities:
+                entity.subchains = annotation_df[annotation_df['pdb_id'] == pdb_id]['chain_ids']
 
             st_modelled_b_factors_str = st_modelled_b_factors.make_pdb_string(
                 gemmi.PdbWriteOptions(cryst1_record=False, end_record=True, ter_records=True))
@@ -125,15 +126,6 @@ if __name__ == '__main__':
                 fout.writelines(st_modelled_b_factors_str)
 
             st_test = read_pdb(path_to_fout)
-
-            for entity in st_test.entities:
-                print(entity)
-                print(entity.entity_type)
-                print(entity.name)
-                print(entity.subchains)
-                print(entity.polymer_type)
-                print(entity.full_sequence[:5])
-
 
             # make symlink for mtz file
             if not os.path.islink(os.path.join(path_to_out_dir, f'{pdb_id}.mtz')):
