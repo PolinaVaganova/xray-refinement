@@ -75,7 +75,7 @@ def create_parm7_rst7_from(
 
     reference = (
         StructurePipeInput(structure, debug_dir=debug_dir / "reference")
-        .do(remove_ligands_and_water)
+        # .do(remove_ligands_and_water)
         .do(remove_alternative_conformations)
         .do(remove_empty_chains)
         .do(retain_only_standard_resnames)
