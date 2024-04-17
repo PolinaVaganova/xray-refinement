@@ -113,8 +113,8 @@ if __name__ == '__main__':
             path_to_fout = os.path.join(path_to_out_dir, os.path.basename(modelled_pdb))
             st_modelled_b_factors.setup_entities()
             print(st_modelled_b_factors.entities)
-            st_modelled_b_factors.entities = st_original.entities
-            print(st_modelled_b_factors.entities)
+            # st_modelled_b_factors.entities = st_original.entities
+            # print(st_modelled_b_factors.entities)
 
             st_modelled_b_factors_str = st_modelled_b_factors.make_pdb_string(
                 gemmi.PdbWriteOptions(cryst1_record=False, end_record=True, ter_records=True))
