@@ -112,6 +112,7 @@ if __name__ == '__main__':
             # write output pdb file
             path_to_fout = os.path.join(path_to_out_dir, os.path.basename(modelled_pdb))
             st_modelled_b_factors.setup_entities()
+            st_modelled_b_factors.assign_label_seq_id()
             print(st_modelled_b_factors.entities)
             # st_modelled_b_factors.entities = st_original.entities
             # print(st_modelled_b_factors.entities)
