@@ -96,8 +96,6 @@ if __name__ == '__main__':
         # open original pdb structure
         path_to_original_pdb = os.path.join(path_to_original_pdbs, f'{pdb_id}.pdb')
         st_original = read_pdb(path_to_original_pdb)
-        st_original_renumber = renumber_residues(st_original)
-        st_original_entities = st_original_renumber.entities
 
         # iterate over all modelled structures to prepare it
         for modelled_pdb in path_to_modelled_pdbs:
@@ -107,12 +105,12 @@ if __name__ == '__main__':
             st_modelled_b_factors = copy_b_factor(st_modelled, st_original)
 
             # add headers
-            original_header = st_original_renumber.make_pdb_headers()
+            original_header = st_original.make_pdb_headers()
 
             # write output pdb file
             path_to_fout = os.path.join(path_to_out_dir, os.path.basename(modelled_pdb))
             st_modelled_b_factors.add_entity_types(overwrite=True)
-            st_modelled.entities = st_original_renumber.entities
+            st_modelled.entities = st_original.entities
             st_modelled_b_factors_str = st_modelled_b_factors.make_pdb_string(
                 gemmi.PdbWriteOptions(cryst1_record=False, end_record=True, ter_records=True))
 
