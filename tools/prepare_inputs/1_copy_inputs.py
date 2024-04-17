@@ -7,6 +7,7 @@ import pandas as pd
 
 AnyPath = Union[str, bytes, os.PathLike]
 
+
 def renumber_residues(st: gemmi.Structure) -> gemmi.Structure:
     chain_renum = 1
     first_res_num = None
@@ -124,5 +125,5 @@ if __name__ == '__main__':
 
             # make symlink for mtz file
             if not os.path.islink(os.path.join(path_to_out_dir, f'{pdb_id}.mtz')):
-                os.symlink(os.path.join(path_to_original_mtz, f'{pdb_id}.mtz'),
+                os.symlink(os.path.join(os.getcwd(), path_to_original_mtz, f'{pdb_id}.mtz'),
                            os.path.join(path_to_out_dir, f'{pdb_id}.mtz'))
