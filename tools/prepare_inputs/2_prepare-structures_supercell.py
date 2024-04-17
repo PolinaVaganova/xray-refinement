@@ -68,6 +68,8 @@ def create_parm7_rst7_from(
         debug_dir: Path = None,
         supercell_size: int = 2,
 ) -> gemmi.Structure:
+    print(structure.entities)
+    print('i am here')
     target_ph = get_target_ph(structure)
     logger.info(f"pH is {target_ph}")
 
