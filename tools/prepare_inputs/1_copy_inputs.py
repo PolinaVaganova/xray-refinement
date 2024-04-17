@@ -37,6 +37,7 @@ def read_pdb(path: AnyPath) -> gemmi.Structure:
 
 def copy_b_factor(structure,
                   original_structure):
+
     original_b_factor_dict = {}
 
     for model in original_structure:
@@ -91,6 +92,7 @@ if __name__ == '__main__':
         elif option == 'modeller':
             # fix this path later
             path_to_modelled_pdbs = glob(os.path.join(path_to_modelled_loops, '*Chain*.pdb'))
+
         path_to_modelled_pdbs.sort()
 
         # open original pdb structure
@@ -109,15 +111,10 @@ if __name__ == '__main__':
 
             # write output pdb file
             path_to_fout = os.path.join(path_to_out_dir, os.path.basename(modelled_pdb))
-            print('before anything')
+            st_modelled_b_factors.setup_entities()
             print(st_modelled_b_factors.entities)
-            st_modelled_b_factors.add_entity_types(overwrite=True)
-            print('after manually adding b factors')
-            print(st_modelled_b_factors.entities)
-            st_modelled_b_factors.entities = st_original.entities
-            print('after setting equally')
-            print(st_modelled_b_factors.entities)
-            print(st_original.entities)
+            # st_modelled_b_factors.entities = st_original.entities
+
             st_modelled_b_factors_str = st_modelled_b_factors.make_pdb_string(
                 gemmi.PdbWriteOptions(cryst1_record=False, end_record=True, ter_records=True))
 
