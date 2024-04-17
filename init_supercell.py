@@ -1,5 +1,4 @@
 from __future__ import annotations
-import glob
 import os
 import shutil
 from pathlib import Path
@@ -13,7 +12,7 @@ from remote_runner import Task
 class Prepare(Step):
     @classmethod
     def write_sf_dat_file(
-        cls, mtz: "gemmi.Mtz", output_filename: Union[os.PathLike, str], cell_size: int
+            cls, mtz: "gemmi.Mtz", output_filename: Union[os.PathLike, str], cell_size: int
     ):
         """Write .tab file for pmemd.arx
         :param mtz: mtz file with P1 symmetry
@@ -60,23 +59,23 @@ class Prepare(Step):
             output.write(f"{len(H)} 0\n")
 
             for h, k, l, fobs, sigma, r_flag in zip(
-                H, K, L, FOBS, SIGMA_FOBS, R_FREE_FLAG
+                    H, K, L, FOBS, SIGMA_FOBS, R_FREE_FLAG
             ):
                 r = r_flag if flag_is_one else 1 - r_flag
                 output.write(
-                    f"{h*cell_size:3.0f} {k*cell_size:3.0f} {l*cell_size:3.0f} "
+                    f"{h * cell_size:3.0f} {k * cell_size:3.0f} {l * cell_size:3.0f} "
                     f"{fobs:15.8e} {sigma:15.8e} {r:1.0f}\n"
                 )
 
     def __init__(
-        self,
-        name: str,
-        parm7: Path,
-        rst7: Path,
-        pdb: Path,
-        mtz: Path,
-        xray_weight_target: float,
-        cell_size: int,
+            self,
+            name: str,
+            parm7: Path,
+            rst7: Path,
+            pdb: Path,
+            mtz: Path,
+            xray_weight_target: float,
+            cell_size: int,
     ):
         Step.__init__(self, name)
 
@@ -143,11 +142,10 @@ go
         )
 
     def prepare_files_for_next_stages(self, md: RefinementProtocol):
-        import gemmi
         from amber_runner.inputs import AmberInput
 
         def count_polymer_residues(
-            st: gemmi.Structure,
+                st: gemmi.Structure,
         ) -> int:
             non_polymer_residue_names = ["WAT", "Cl-", "Na+"]
             count = 0
@@ -362,14 +360,14 @@ class ConvertToPdb(Step):
 
 class RefinementProtocol(MdProtocol):
     def __init__(
-        self,
-        pdb: Path,
-        mtz: Path,
-        parm7: Path,
-        rst7: Path,
-        output_dir: Path,
-        xray_weight_target: float,
-        cell_size: int,
+            self,
+            pdb: Path,
+            mtz: Path,
+            parm7: Path,
+            rst7: Path,
+            output_dir: Path,
+            xray_weight_target: float,
+            cell_size: int,
     ):
         wd = output_dir
         wd.mkdir(mode=0o755, exist_ok=True, parents=True)
@@ -396,7 +394,7 @@ class RefinementProtocol(MdProtocol):
         self.convert_to_pdb = ConvertToPdb("convert_to_pdb")
 
 
-def create_tasks(topology_dirs: List[Path], 
+def create_tasks(topology_dirs: List[Path],
                  small_molecules_dir: Path,
                  total_output_dir: Path,
                  path_to_mtz_file: Path
@@ -414,14 +412,14 @@ def create_tasks(topology_dirs: List[Path],
         output_dir = total_output_dir / os.path.basename(topology_dir)
         input_copy = output_dir / "inputs"
         pdb = input_copy / "wbox.pdb"
-        mtz = input_copy /  os.path.basename(path_to_mtz_file)
+        mtz = input_copy / os.path.basename(path_to_mtz_file)
         rst7 = input_copy / "wbox.rst7"
         parm7 = input_copy / "wbox.parm7"
 
         # skip execution if ferined structure already exist
         if (
-            not (topology_dir / "wbox.rst7").exists()
-            or not (topology_dir / "wbox.parm7").exists()
+                not (topology_dir / "wbox.rst7").exists()
+                or not (topology_dir / "wbox.parm7").exists()
         ):
             bad_tasks_parm.append(os.path.basename(topology_dir))
         elif not (topology_dir / "wbox.pdb").exists():
@@ -472,28 +470,30 @@ def run_sequentially_inplace(tasks: List[Task]):
 
 
 def main():
+    # settings
+    path_to_annotation_csv = "1_annotated_rcsb/run_16.04_1nko.csv"
+    option = "rapper"
+    run_dir = "4_protocol_run"
+    small_molecules_dir = os.path.join(run_dir, "small-molecules")
+    pdb_df = pd.read_csv(path_to_annotation_csv, sep=",")
+    pdb_ids = pdb_df["pdb_id"]
 
-    small_molecules_dir = "data/small-molecules/"
-    path_to_csv = '/home/polina/xray_refinment/1_filter_pdb/all_filtered_supercell.csv'
-
-    # pdb_df = pd.read_csv(path_to_csv, sep=',')
-    # pdb_ids = pdb_df['pdb_id']
-    pdb_ids = ['1y9u']
-
+    # iterate over available pdb codes and initialize protocol
     for pdb_id in pdb_ids:
-        path_to_main_dir = os.path.join("data/amber-topology/", pdb_id)
+        path_to_main_dir = os.path.join(run_dir, "amber-topology", f"{pdb_id}_{option}")
+
         topology_dirs = [Path(os.path.join(path_to_main_dir, dirname))
                          for dirname in os.listdir(path_to_main_dir)]
 
-        output_dir = os.path.join("data/output/", f'{pdb_id}_sc')
-        path_to_mtz_file = os.path.join("data/input/", pdb_id, "2_add_headers", f"{pdb_id}.mtz")
-        tasks = create_tasks(topology_dirs=topology_dirs, 
+        output_dir = os.path.join(run_dir, "output", f"{pdb_id}_{option}")
+        path_to_mtz_file = os.path.join(run_dir, "input", f"{pdb_id}_{option}", f"{pdb_id}.mtz")
+
+        tasks = create_tasks(topology_dirs=topology_dirs,
                              small_molecules_dir=Path(small_molecules_dir),
                              total_output_dir=Path(output_dir),
                              path_to_mtz_file=Path(path_to_mtz_file))
 
         assert tasks
-        # run_sequentially_inplace(tasks)
 
 
 if __name__ == "__main__":
