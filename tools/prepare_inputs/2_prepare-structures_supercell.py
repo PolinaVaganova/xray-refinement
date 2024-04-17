@@ -126,18 +126,18 @@ def create_parm7_rst7_from(
     #     )
 
     # it _might_ be useful to run minimize_in_python before neutralizing with ions
-    return (
-        StructurePipeInput(reference_st, debug_dir=debug_dir)
-        .do(copy_residue_names, reference=reference_protonation_st)
-        .do(add_missing_atoms)
-        # needed match the reference after tleap, just in case
-        .do(renumber_residues)
-        .do(add_missing_b_factors, reference=reference_st)
-        .do(add_missing_occupancies, reference=reference_st)
-        .do(neutralize_with_ions, negative_ion=negative_ion, positive_ion=positive_ion)
-        .do(add_water, water=solvent)
-        .do(create_topology_and_input, parm7_path=parm7_path, rst7_path=rst7_path)
-    ).st
+    # return (
+    #     StructurePipeInput(reference_st, debug_dir=debug_dir)
+    #     .do(copy_residue_names, reference=reference_protonation_st)
+    #     .do(add_missing_atoms)
+    #     # needed match the reference after tleap, just in case
+    #     .do(renumber_residues)
+    #     .do(add_missing_b_factors, reference=reference_st)
+    #     .do(add_missing_occupancies, reference=reference_st)
+    #     .do(neutralize_with_ions, negative_ion=negative_ion, positive_ion=positive_ion)
+    #     .do(add_water, water=solvent)
+    #     .do(create_topology_and_input, parm7_path=parm7_path, rst7_path=rst7_path)
+    # ).st
 
 
 def process_pdb(
