@@ -117,7 +117,7 @@ if __name__ == '__main__':
             # print(st_modelled_b_factors.entities)
             for entity in st_modelled_b_factors.entities:
                 entity.subchains = annotation_df[annotation_df['pdb_id'] == pdb_id]['chain_ids']
-                print(entity.subchains)
+                print(entity.entity_type)
 
             st_modelled_b_factors_str = st_modelled_b_factors.make_pdb_string(
                 gemmi.PdbWriteOptions(cryst1_record=False, end_record=True, ter_records=True))
