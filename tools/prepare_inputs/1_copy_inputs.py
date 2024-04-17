@@ -112,7 +112,6 @@ if __name__ == '__main__':
             # write output pdb file
             path_to_fout = os.path.join(path_to_out_dir, os.path.basename(modelled_pdb))
             st_modelled_b_factors.setup_entities()
-            print(st_modelled_b_factors.entities)
             # st_modelled_b_factors.entities = st_original.entities
 
             st_modelled_b_factors_str = st_modelled_b_factors.make_pdb_string(
@@ -121,6 +120,9 @@ if __name__ == '__main__':
             with open(path_to_fout, "w") as fout:
                 fout.writelines(original_header)
                 fout.writelines(st_modelled_b_factors_str)
+
+            st_test = read_pdb(path_to_fout)
+            print(st_test.entities)
 
             # make symlink for mtz file
             if not os.path.islink(os.path.join(path_to_out_dir, f'{pdb_id}.mtz')):
